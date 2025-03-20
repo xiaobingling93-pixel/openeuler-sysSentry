@@ -40,8 +40,6 @@ from .alarm import alarm_register
 
 from xalarm.register_xalarm import xalarm_unregister
 
-clientId = -1
-
 CPU_EXIST = True
 try:
     from sentryPlugins.cpu_sentry.cpu_alarm import cpu_alarm_recv
@@ -642,6 +640,7 @@ def main():
         logging.error("get pid file lock failed, exist")
         sys.exit(17)
 
+    clientId = -1
     try:
         signal.signal(signal.SIGINT, sig_handler)
         signal.signal(signal.SIGTERM, sig_handler)
