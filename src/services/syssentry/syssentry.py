@@ -53,7 +53,7 @@ except ImportError:
     BMC_EXIST = False
 
 
-INSPECTOR = None
+exit_flag = False
 
 CTL_MSG_HEAD_LEN = 6
 CTL_MSG_MAGIC_LEN = 3
@@ -502,7 +502,8 @@ def main_loop():
                 continue
             task.onstart_handle()
 
-    while True:
+    global exit_flag
+    while not exit_flag:
         try:
             events_list = epoll_fd.poll(SERVER_EPOLL_TIMEOUT)
             for event_fd, _ in events_list:
@@ -546,10 +547,14 @@ def release_pidfile():
 def remove_sock_file():
     """remove sock file
     """
+    for socket_path in (THB_SOCKET_PATH, CTL_SOCKET_PATH, CPU_ALARM_SOCKET_PATH, RESULT_SOCKET_PATH, BMC_SOCKET_PATH):
+        try:
+            os.unlink(socket_path)
+        except FileNotFoundError:
+            pass
     try:
-        os.unlink(THB_SOCKET_PATH)
-        os.unlink(CTL_SOCKET_PATH)
-    except FileNotFoundError:
+        os.rmdir(SENTRY_RUN_DIR)
+    except Exception:
         pass
 
 
@@ -588,21 +593,10 @@ def sig_handler(signum, _f):
     :param _f:
     :return:
     """
+    global exit_flag
     if signum not in (signal.SIGINT, signal.SIGTERM):
         return
-    tasks_dict = TasksMap.tasks_dict
-    for task_type in tasks_dict:
-        for task_name in tasks_dict[task_type]:
-            task = tasks_dict[task_type][task_name]
-            task.stop()
-            if task.pid > 0:
-                try:
-                    os.kill(task.pid, signal.SIGTERM)
-                except os.error as os_error:
-                    logging.debug("sigterm kill error, %s", str(os_error))
-    release_pidfile()
-    remove_sock_file()
-    sys.exit(0)
+    exit_flag = True
 
 
 def chk_and_set_pidfile():
@@ -621,6 +615,19 @@ def chk_and_set_pidfile():
         logging.error("Failed to get lock on pidfile")
 
     return False
+
+
+def clean_child():
+    tasks_dict = TasksMap.tasks_dict
+    for task_type in tasks_dict:
+        for task_name in tasks_dict[task_type]:
+            task = tasks_dict[task_type][task_name]
+            task.stop()
+            if task.pid > 0:
+                try:
+                    os.kill(task.pid, signal.SIGTERM)
+                except os.error as os_error:
+                    logging.debug("sigterm kill error, %s", str(os_error))
 
 
 def main():
@@ -656,8 +663,10 @@ def main():
         main_loop()
 
     except Exception:
-        logging.error('%s', traceback.format_exc())
+        pass
     finally:
         if clientId != -1:
             xalarm_unregister(clientId)
+        clean_child()
         release_pidfile()
+        remove_sock_file()
