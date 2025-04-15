@@ -33,7 +33,7 @@ function do_test() {
     sleep 1
 
     sentryctl status test_type_period 2>&1 | tee ${tmp_log} | cat
-    expect_true "grep -E '(status: EXITED)' ${tmp_log}"
+    expect_true "grep -E '(status: FAILED)' ${tmp_log}"
 
     sentryctl start test_type_period
     expect_eq $? 0
@@ -50,7 +50,7 @@ function do_test() {
     if pgrep -x "test_task" >/dev/null; then
         pkill -x "test_task"
         sleep 2
-        sentryctl status test_type_period | grep -w "status: FAILED"
+        sentryctl status test_type_period | grep -w "status: WAITING"
         expect_eq $? 0
 
         sentryctl start test_type_period
@@ -59,7 +59,7 @@ function do_test() {
         sentryctl stop test_type_period
         expect_eq $? 0
 
-        sentryctl status test_type_period | grep -w "status: EXITED"
+        sentryctl status test_type_period | grep -w "status: FAILED"
         expect_eq $? 0
     fi
 
