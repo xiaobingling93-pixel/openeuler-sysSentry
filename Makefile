@@ -27,9 +27,10 @@ PYTHON_VERSION := $(shell $(PYBIN) --version 2>&1 | awk '{print $$2}' | cut -d '
 PKGVER := syssentry-$(VERSION)-py$(PYTHON_VERSION)
 PKGVEREGG := syssentry-$(VERSION)-py$(PYTHON_VERSION).egg-info
 
-all: lib ebpf hbm_online_repair sentry_msg_monitor bmc_block_io
+all: lib ebpf hbm_online_repair sentry_msg_monitor bmc_block_io soc_ring_sentry
 
 lib:libxalarm log
+	yum install -y numactl-libs numactl-devel
 
 libxalarm:
 	cd $(CURLIBDIR) && cmake . -DXD_INSTALL_BINDIR=$(LIBINSTALLDIR) -B build
@@ -52,6 +53,9 @@ sentry_msg_monitor: lib
 
 bmc_block_io: lib
 	cd $(CURSRCDIR)/sentryPlugins/bmc_block_io/ && sh build.sh
+
+soc_ring_sentry: lib
+	cd $(CURSRCDIR)/sentryPlugins/soc_ring_sentry/ && make
 
 install: all dirs isentry
 
@@ -128,6 +132,11 @@ isentry:
 	install -m 550 $(CURSRCDIR)/sentryPlugins/hbm_online_repair/hbm_online_repair $(BINDIR)
 	install -m 600 $(CURCONFIGDIR)/env/hbm_online_repair.env $(ETCDIR)/sysconfig/
 	install -m 600 $(CURCONFIGDIR)/tasks/hbm_online_repair.mod $(ETCDIR)/sysSentry/tasks/
+	
+	# soc_ring_sentry
+	install -m 750 $(CURSRCDIR)/sentryPlugins/soc_ring_sentry/soc_ring_sentry $(BINDIR)
+	install -m 600 $(CURCONFIGDIR)/env/soc_ring_sentry.env $(ETCDIR)/sysconfig/
+	install -m 600 $(CURCONFIGDIR)/tasks/soc_ring_sentry.mod $(ETCDIR)/sysSentry/tasks/
 
 	# sentry_msg_monitor
 	install -m 550 $(CURSRCDIR)/sentryPlugins/sentry_msg_monitor/sentry_msg_monitor $(BINDIR)
@@ -172,7 +181,10 @@ smm_clean:
 bmc_clean:
 	cd $(CURSRCDIR)/sentryPlugins/bmc_block_io && sh build.sh clean
 
-clean: ebpf_clean hbm_clean smm_clean bmc_clean
+srs_clean:
+	cd $(CURSRCDIR)/sentryPlugins/soc_ring_sentry && make clean
+
+clean: ebpf_clean hbm_clean smm_clean bmc_clean srs_clean
 	rm -rf $(CURLIBDIR)/build
 	rm -rf $(CURSRCDIR)/build
 	rm -rf $(CURSRCDIR)/libsentry/c/log/build
@@ -185,6 +197,7 @@ uninstall:
 	rm -rf $(BINDIR)/xalarmd
 	rm -rf $(BINDIR)/sentryCollector
 	rm -rf $(BINDIR)/hbm_online_repair
+	rm -rf $(BINDIR)/soc_ring_sentry
 	rm -rf $(BINDIR)/sentry_msg_monitor
 	rm -rf $(BINDIR)/bmc_block_io
 	rm -rf $(BINDIR)/ebpf_collector
@@ -194,6 +207,7 @@ uninstall:
 	rm -rf $(INCLUDEDIR)/libsentry
 	rm -rf $(ETCDIR)/sysSentry
 	rm -rf $(ETCDIR)/hbm_online_repair.env
+	rm -rf $(ETCDIR)/soc_ring_sentry.env
 	rm -rf $(ETCDIR)/sentry_msg_monitor.env
 	rm -rf $(LOGSAVEDIR)/sysSentry
 	rm -rf $(PYDIR)/syssentry
