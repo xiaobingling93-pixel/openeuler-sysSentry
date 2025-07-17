@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <ctype.h>
 #include <stdint.h>
@@ -16,6 +17,7 @@
 #include "register_xalarm.h"
 #include "log_utils.h"
 #include "soc_ring_sentry.h"
+#include "tc_ring_one.h"
 
 #define DEFAULT_INTENSITY_DELAY 600
 #define DEFAULT_HANDLE 1
@@ -41,7 +43,7 @@ static void print_opts_help()
 
 static void soc_ring_sentry_case_get()
 {
-    //todo: print the test case name
+    printf("1. [soc stl] ring data bit line scan tescase.\n");
 }
 
 static bool soc_ring_sentry_envtoull(char *env, uint64_t *value)
@@ -203,8 +205,12 @@ static void soc_ring_sentry_init(size_t core_num)
 
 static int soc_ring_sentry_delivery(size_t core_num)
 {
-    //todo: add delivery test
-    return 0;
+    int ret;
+
+    ret = tc_ring_one_create_threads(g_mem_size, g_loop_cnt, g_intensity_delay, g_handle, g_blacklist, core_num);
+    tc_ring_one_post_process(ret);
+
+    return ret;
 }
 
 size_t get_system_core_num(void)
