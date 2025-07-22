@@ -12,7 +12,7 @@
 
 
 /**
- * tc_ring_one_create_threads -
+ * tc_ring_one_main -
  *                  测试用例总入口，该函数会为测试申请测试内存空间，为每个测试核创建测试线程，并将测试线程调度到测试核上
  * @mem_size:		用户指定的测试内存空间大小，系统每个numa节点均提供对用大小的测试空间，用于巡检测试
  * @loop_cnt:	    测试循环次数, 大于0，则按照对应的循环做巡检测试，等于0，则巡检线程持续驻留在测试核中
@@ -32,7 +32,6 @@
  *                  -2 - 检出到数据错误
  *
  */
-int tc_ring_one_create_threads(uint64_t mem_size, uint64_t loop_cnt, uint64_t delay, uint64_t err_handle, bool *blacklist, size_t core_num);
-void tc_ring_one_post_process(int result);
+int tc_ring_one_main(uint64_t mem_size, uint64_t loop_cnt, uint64_t delay, uint64_t err_handle, bool *blacklist, size_t core_num);
 
 #endif/*__TC_RING_ONE_H__*/

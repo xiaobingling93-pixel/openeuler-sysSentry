@@ -207,8 +207,7 @@ static int soc_ring_sentry_delivery(size_t core_num)
 {
     int ret;
 
-    ret = tc_ring_one_create_threads(g_mem_size, g_loop_cnt, g_intensity_delay, g_handle, g_blacklist, core_num);
-    tc_ring_one_post_process(ret);
+    ret = tc_ring_one_main(g_mem_size, g_loop_cnt, g_intensity_delay, g_handle, g_blacklist, core_num);
 
     return ret;
 }
@@ -220,6 +219,19 @@ size_t get_system_core_num(void)
     return (core_num > 0) ? (size_t)core_num : 1;
 }
 
+void soc_ring_sentry_report(enum RESULT_LEVEL result_level, const char *report_data)
+{
+    char json_result[2048];
+
+    snprintf(json_result, sizeof(json_result), "{\"msg\":\"%s\", \"code\":1001}", report_data);
+    report_result(TOOL_NAME, result_level, json_result);
+    if (result_level == RESULT_LEVEL_PASS) {
+        logging_info("%s\n", report_data);
+    } else {
+        logging_error("%s\n", report_data);
+    }
+}
+
 static void soc_ring_sentry_exec()
 {
     size_t core_num = get_system_core_num();
@@ -228,7 +240,7 @@ static void soc_ring_sentry_exec()
     soc_ring_sentry_init(core_num);
     ret = soc_ring_sentry_delivery(core_num);
     if (ret == 0) {
-        report_result(TOOL_NAME, RESULT_LEVEL_PASS, "{\"msg\":\"SOC STL test pass\", \"code\":1001}");
+        soc_ring_sentry_report(RESULT_LEVEL_PASS, "SOC STL test pass");
     }
 
     if (g_blacklist) {

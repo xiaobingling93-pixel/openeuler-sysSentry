@@ -24,4 +24,6 @@ extern uint64_t g_mem_size;
 extern uint64_t g_loop_cnt;
 extern bool *g_blacklist;
 
+void soc_ring_sentry_report(enum RESULT_LEVEL result_level, const char *report_data);
+
 #endif
