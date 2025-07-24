@@ -410,6 +410,7 @@ static int tc_ring_one_exec(struct tc_ring_one_config *config)
         pthread_join(config->tc_core_threads[i], NULL);
     }
 
+    i = i - 1;
     if (config->err_flag > 0) {
         ret = TC_RING_ONE_FAIL;
     } else {
@@ -417,8 +418,10 @@ static int tc_ring_one_exec(struct tc_ring_one_config *config)
     }
 
 pthread_bind_fail:
-    pthread_cancel(config->tc_core_threads[i]);
-    pthread_join(config->tc_core_threads[i], NULL);
+    if (!is_core_invalid(config, i)) {
+        pthread_cancel(config->tc_core_threads[i]);
+        pthread_join(config->tc_core_threads[i], NULL);
+    }
 
 pthread_create_fail:
     for (i = i - 1; i >= 0; i--) {

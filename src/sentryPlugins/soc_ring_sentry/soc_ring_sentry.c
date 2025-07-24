@@ -153,7 +153,7 @@ static void soc_ring_sentry_blacklist_init(size_t core_num)
     }
 
     if (env && strlen(env) > 0) {
-        struct bitmask *cpuset = numa_parse_cpustring(env);
+        struct bitmask *cpuset = numa_parse_cpustring_all(env);
 
         if (!cpuset) {
             logging_error("Failed to parse environment variable SOC_RING_SENTRY_BLACKLIST: %s\n", env);
