@@ -441,6 +441,22 @@ out:
     return ret;
 }
 
+static void tc_ring_one_execute_panic(void)
+{
+    FILE *file = fopen("/proc/sysrq-trigger", "w");
+
+    if (file == NULL) {
+        logging_error("Failed to open /proc/sysrq-trigger");
+        return;
+    }
+
+    if (fwrite("c", sizeof(char), 1, file) != 1) {
+        logging_error("Failed to write to /proc/sysrq-trigger");
+    }
+
+    fclose(file);
+}
+
 void tc_ring_one_post_process(uint64_t err_handle, int result)
 {
     if (result == TC_RING_ONE_SUCCESS) {
@@ -451,19 +467,20 @@ void tc_ring_one_post_process(uint64_t err_handle, int result)
                 logging_error("the system administrator must handle this error!!!\n");
                 break;
             case TC_ERROR_HANDLE_SHUTDOWN:
-                    logging_error("Execute 'shutdown'\n");
+                logging_error("Execute 'shutdown'\n");
                 if (reboot(RB_POWER_OFF) < 0) {
                     logging_error("ERROR: Failed to execute 'shutdown'\n");
                 }
                 break;
             case TC_ERROR_HANDLE_REBOOT:
-                    logging_error("Execute 'reboot'\n");
+                logging_error("Execute 'reboot'\n");
                 if (reboot(RB_AUTOBOOT) < 0) {
                     logging_error("ERROR: Failed to execute 'reboot'\n");
                 }
                 break;
             default: // panic
-                abort();
+                logging_error("Execute 'panic'\n");
+                tc_ring_one_execute_panic();
                 break;
         }
     } else {
