@@ -34,4 +34,4 @@
  */
 int tc_ring_one_main(uint64_t mem_size, uint64_t loop_cnt, uint64_t delay, uint64_t err_handle, bool *blacklist, size_t core_num);
 
-#endif/*__TC_RING_ONE_H__*/
+#endif /*__TC_RING_ONE_H__*/

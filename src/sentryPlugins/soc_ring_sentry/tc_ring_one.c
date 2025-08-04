@@ -48,7 +48,7 @@ struct tc_ring_one_config {
     int                    sys_core_total;          // 系统核总数
     int                    scan_bit;                // 扫描的bit
     int                    err_flag;                 // 错误计数
-    int                    numa_node;               //系统numa总数
+    int                    numa_node;               // 系统numa总数
 };
 
 #define TC_RING_ONE_BLOCK_SIZE                      0x10000
@@ -119,7 +119,7 @@ static uintptr_t vaddr_to_phys(uintptr_t vaddr)
     int fd;
 
     offset = vaddr / page_size * (sizeof(pinfo));
-    sprintf(page_map_name, "/proc/%d/pagemap", pid);
+    snprintf(page_map_name, sizeof(page_map_name), "/proc/%d/pagemap", pid);
     fd = open(page_map_name, O_RDONLY);
     if (fd < 0) {
         logging_error("Failed to open %s\n", page_map_name);
