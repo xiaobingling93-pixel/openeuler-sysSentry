@@ -641,7 +641,7 @@ static bool tc_ring_one_scan_bit(struct tc_ring_one_config *config, int scan_bit
     return true;
 }
 
-static bool tc_ring_one_test_issue(struct tc_ring_one_config *config, int scan_bit, int loop_cnt)
+static bool tc_ring_one_test_issue(struct tc_ring_one_config *config, int scan_bit, uint64_t loop_cnt)
 {
     bool ret;
 
