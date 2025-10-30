@@ -9,6 +9,7 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 import logging
+from .extra_logger import extra_slow_log
 
 AVG_VALUE = 0
 AVG_COUNT = 1
@@ -39,6 +40,8 @@ def get_win_data(disk_name, rw, io_data):
     """get latency and iodump win data"""
     latency = ''
     iodump = ''
+    iops = ''
+    iodump_data = ''
     for stage_name in io_data[disk_name]:
         if 'latency' in io_data[disk_name][stage_name][rw]:
             latency_list = io_data[disk_name][stage_name][rw]['latency'].window_data_to_string()
@@ -46,7 +49,15 @@ def get_win_data(disk_name, rw, io_data):
         if 'iodump' in io_data[disk_name][stage_name][rw]:
             iodump_list = io_data[disk_name][stage_name][rw]['iodump'].window_data_to_string()
             iodump += f'{stage_name}: [{iodump_list}], '
-    return {"latency": latency[:-2], "iodump": iodump[:-2]}
+        if 'iops' in io_data[disk_name][stage_name][rw]:
+            iops_list = io_data[disk_name][stage_name][rw]['iops'].window_data_to_string()
+            iops += f'{stage_name}: [{iops_list}], '
+        if 'iodump_data' in io_data[disk_name][stage_name][rw]:
+            iodump_data_list = io_data[disk_name][stage_name][rw]['iodump_data'].window_data_to_string()
+            iodump_data += f'"{stage_name}": {iodump_data_list}, '
+    if iodump_data:
+        iodump_data = '{' + iodump_data[:-2] + '}'
+    return {"latency": latency[:-2], "iodump": iodump[:-2], "iops": iops[:-2], "iodump_data": iodump_data}
 
 
 def is_abnormal(io_key, io_data):
@@ -90,6 +101,8 @@ def update_io_data(period_value, io_data, io_key):
         io_data[io_key[0]][io_key[1]][io_key[2]]["latency"].append_new_data(period_value[0])
     if all_wins and "iodump" in all_wins:
         io_data[io_key[0]][io_key[1]][io_key[2]]["iodump"].append_new_data(period_value[1])
+    if all_wins and "iops" in all_wins:
+        io_data[io_key[0]][io_key[1]][io_key[2]]["iops"].append_new_data(period_value[3])
 
 
 def log_abnormal_period(old_avg, period_value, io_data, io_key):
@@ -111,6 +124,8 @@ def log_slow_win(msg, reason):
                     f"iotype: {msg['io_type']}, type: {msg['alarm_type']}, reason: {reason}")
     logging.info(f"latency: {msg['details']['latency']}")
     logging.info(f"iodump: {msg['details']['iodump']}")
+    logging.info(f"iops: {msg['details']['iops']}")
+    extra_slow_log(msg)
 
 
 def update_avg_and_check_abnormal(data, io_key, win_size, io_avg_value, io_data):
@@ -137,3 +152,15 @@ def update_avg_and_check_abnormal(data, io_key, win_size, io_avg_value, io_data)
         return True
     set_nested_value(io_avg_value, io_key, update_io_avg(old_avg, period_value, win_size))
     return True
+
+
+def update_avg_iodump_data(iodump_data, is_success, io_key, io_data):
+    """update iodump data to io_data"""
+    all_wins = get_nested_value(io_data, io_key)
+    if all_wins and "iodump_data" in all_wins:
+        if not is_success:
+            io_data[io_key[0]][io_key[1]][io_key[2]]["iodump_data"].append_new_data([])
+        else:
+            period_value = get_nested_value(iodump_data, io_key)
+            io_data[io_key[0]][io_key[1]][io_key[2]]["iodump_data"].append_new_data(period_value)
+

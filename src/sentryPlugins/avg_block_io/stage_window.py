@@ -53,3 +53,21 @@ class IoDumpWindow(AbnormalWindowBase):
 
     def is_abnormal_period(self, value, avg_val=0):
         return value > self.abnormal_time
+
+
+class IopsWindow(AbnormalWindowBase):
+    def is_abnormal_period(self, value, avg_val=10):
+        return False
+
+
+class IodumpMsgWindow:
+    def __init__(self, window_size=10):
+        self.window_size = window_size
+        self.window_data = [[] for _ in range(window_size)]
+
+    def append_new_data(self, msg):
+        self.window_data.pop(0)
+        self.window_data.append(msg)
+
+    def window_data_to_string(self):
+        return str(self.window_data)

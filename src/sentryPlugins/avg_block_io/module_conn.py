@@ -12,10 +12,10 @@ import json
 import logging
 import sys
 
-from .utils import is_abnormal, get_win_data, log_slow_win
-from sentryCollector.collect_plugin import is_iocollect_valid, get_io_data, Result_Messages, get_disk_type, Disk_Type
+from sentryCollector.collect_plugin import is_iocollect_valid, get_io_data, get_iodump_data, Result_Messages, get_disk_type, Disk_Type
 from syssentry.result import ResultLevel, report_result
 from xalarm.sentry_notify import xalarm_report, MINOR_ALM, ALARM_TYPE_OCCUR
+from .utils import is_abnormal, get_win_data, log_slow_win
 
 
 TASK_NAME = "avg_block_io"
@@ -32,6 +32,14 @@ def avg_get_io_data(io_dic):
                 f"disk={io_dic['disk_list']}, stage={io_dic['stage_list']}, iotype={io_dic['iotype_list']}")
     res = get_io_data(io_dic["period_time"], io_dic["disk_list"], io_dic["stage_list"], io_dic["iotype_list"])
     return check_result_validation(res, 'get io data')
+
+
+def avg_get_iodump_data(io_dic):
+    """avg_get_iodump_data from sentryCollector"""
+    logging.debug(f"send to sentryCollector avg_get_iodump_data: period={io_dic['period_time']}, "
+                f"disk={io_dic['disk_list']}, stage={io_dic['stage_list']}, iotype={io_dic['iotype_list']}")
+    res = get_iodump_data(io_dic["period_time"], io_dic["disk_list"], io_dic["stage_list"], io_dic["iotype_list"])
+    return check_result_validation(res, 'get io dump data')
 
 
 def avg_is_iocollect_valid(io_dic, config_disk, config_stage):
@@ -89,6 +97,7 @@ def process_report_data(disk_name, rw, io_data):
         msg["block_stack"] = f"bio,{stage_name}"
         msg["alarm_type"] = abnormal_list
         log_slow_win(msg, "IO press")
+        del msg["details"]["iodump_data"] # 极端场景下iodump_data可能过大,导致发送失败,所以只在日志中打印,不发送到告警模块
         xalarm_report(1002, MINOR_ALM, ALARM_TYPE_OCCUR, json.dumps(msg))
         return
 
@@ -99,6 +108,7 @@ def process_report_data(disk_name, rw, io_data):
         msg["block_stack"] = "bio,rq_driver"
         msg["alarm_type"] = abnormal_list
         log_slow_win(msg, "driver slow")
+        del msg["details"]["iodump_data"] # 极端场景下iodump_data可能过大,导致发送失败,所以只在日志中打印,不发送到告警模块
         xalarm_report(1002, MINOR_ALM, ALARM_TYPE_OCCUR, json.dumps(msg))
         return
 
@@ -112,10 +122,12 @@ def process_report_data(disk_name, rw, io_data):
         msg["block_stack"] = f"bio,{stage_name}"
         msg["alarm_type"] = abnormal_list
         log_slow_win(msg, "kernel slow")
+        del msg["details"]["iodump_data"] # 极端场景下iodump_data可能过大,导致发送失败,所以只在日志中打印,不发送到告警模块
         xalarm_report(1002, MINOR_ALM, ALARM_TYPE_OCCUR, json.dumps(msg))
         return
 
     log_slow_win(msg, "unknown")
+    del msg["details"]["iodump_data"] # 极端场景下iodump_data可能过大,导致发送失败,所以只在日志中打印,不发送到告警模块
     xalarm_report(1002, MINOR_ALM, ALARM_TYPE_OCCUR, json.dumps(msg))
 
 

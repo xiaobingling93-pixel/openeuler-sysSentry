@@ -17,17 +17,24 @@ import time
 import logging
 import threading
 import subprocess
+import re
 from typing import Union
 
 from .collect_config import CollectConfig
+from .collect_config import CONF_IO_NVME_SSD, CONF_IO_SATA_SSD, CONF_IO_SATA_HDD, CONF_IO_THRESHOLD_DEFAULT
+from .collect_plugin import get_disk_type, DiskType
 
 Io_Category = ["read", "write", "flush", "discard"]
 IO_GLOBAL_DATA = {}
 IO_CONFIG_DATA = []
+IO_DUMP_DATA = {}
 EBPF_GLOBAL_DATA = []
 EBPF_PROCESS = None
 EBPF_STAGE_LIST = ["wbt", "rq_driver", "bio", "gettag"]
 EBPF_SUPPORT_VERSION = ["6.6.0"]
+
+#iodump data limit
+IO_DUMP_DATA_LIMIT = 10
 
 class IoStatus():
     TOTAL = 0
@@ -50,6 +57,7 @@ class CollectIo():
         self.ebpf_base_path = 'ebpf_collector'
 
         self.loop_all = False
+        self.io_threshold_config = module_config.get_io_threshold()
 
         if disk_str == "default":
             self.loop_all = True
@@ -57,9 +65,50 @@ class CollectIo():
             self.disk_list = disk_str.strip().split(',')
 
         self.stop_event = threading.Event()
+        self.iodump_pattern = re.compile(
+            r'(?P<task_name>[^-]+)-(?P<pid>\d+)\s+'
+            r'\w+\s+'
+            r'stage\s+(?P<stage>\w+)\s+'
+            r'(?P<ptr>[0-9a-fA-F]{16})\s+'
+            r'.*started\s+(?P<start_time_ns>\d+)\s+ns\s+ago'
+        )
 
         IO_CONFIG_DATA.append(self.period_time)
         IO_CONFIG_DATA.append(self.max_save)
+
+    def update_io_threshold(self, disk_name, stage_list):
+        disk_type_result = get_disk_type(disk_name)
+        if disk_type_result["ret"] == 0 and disk_type_result["message"] in ('0', '1', '2'):
+            disk_type = int(disk_type_result["message"])
+            if disk_type == DiskType.TYPE_NVME_SSD:
+                config_threshold = str(self.io_threshold_config[CONF_IO_NVME_SSD])
+            elif disk_type == DiskType.TYPE_SATA_SSD:
+                config_threshold = str(self.io_threshold_config[CONF_IO_SATA_SSD])
+            elif disk_type == DiskType.TYPE_SATA_HDD:
+                config_threshold = str(self.io_threshold_config[CONF_IO_SATA_HDD])
+            else:
+                return
+
+            for stage in stage_list:
+                io_threshold_file = '/sys/kernel/debug/block/{}/blk_io_hierarchy/{}/threshold'.format(disk_name, stage)
+                try:
+                    with open(io_threshold_file, 'r') as file:
+                        current_threshold = file.read().strip()
+                except FileNotFoundError:
+                    logging.error("The file %s does not exist.", io_threshold_file)
+                    continue
+                except Exception as e:
+                    logging.error("An error occurred while reading: %s", e)
+                    continue
+
+                if current_threshold != config_threshold:
+                    try:
+                        with open(io_threshold_file, 'w') as file:
+                            file.write(config_threshold)
+                        logging.info("update %s io_dump_threshold from %s to %s",
+                                      io_threshold_file, current_threshold, config_threshold)
+                    except Exception as e:
+                        logging.error("An error occurred while writing: %s", e)
 
     def get_blk_io_hierarchy(self, disk_name, stage_list):
         stats_file = '/sys/kernel/debug/block/{}/blk_io_hierarchy/stats'.format(disk_name)
@@ -95,6 +144,8 @@ class CollectIo():
                 # read=0, write=1, flush=2, discard=3
                 if (len(IO_GLOBAL_DATA[disk_name][stage][Io_Category[index]])) >= self.max_save:
                     IO_GLOBAL_DATA[disk_name][stage][Io_Category[index]].pop()
+                if (len(IO_DUMP_DATA[disk_name][stage][Io_Category[index]])) >= self.max_save:
+                    IO_DUMP_DATA[disk_name][stage][Io_Category[index]].pop()
 
                 curr_lat = self.get_latency_value(curr_stage_value, last_stage_value, index)
                 curr_iops = self.get_iops(curr_stage_value, last_stage_value, index)
@@ -102,6 +153,8 @@ class CollectIo():
                 curr_io_dump = self.get_io_dump(disk_name, stage, index)
 
                 IO_GLOBAL_DATA[disk_name][stage][Io_Category[index]].insert(0, [curr_lat, curr_io_dump, curr_io_length, curr_iops])
+                if curr_io_dump == 0:
+                    IO_DUMP_DATA[disk_name][stage][Io_Category[index]].insert(0, [])
 
     def get_iops(self, curr_stage_value, last_stage_value, category):
         try:
@@ -151,11 +204,31 @@ class CollectIo():
     def get_io_dump(self, disk_name, stage, category):
         io_dump_file = '/sys/kernel/debug/block/{}/blk_io_hierarchy/{}/io_dump'.format(disk_name, stage)
         count = 0
+        io_dump_msg = []
+        pattern = self.iodump_pattern
+
         try:
             with open(io_dump_file, 'r') as file:
                 for line in file:
-                    count += line.count('.op=' + Io_Category[category].upper())
+                    if line.count('.op=' + Io_Category[category].upper()) > 0:
+                        match = pattern.match(line)
+                        if match:
+                            if count < IO_DUMP_DATA_LIMIT:
+                                parsed = match.groupdict()
+                                values = [
+                                    parsed["task_name"],
+                                    parsed["pid"],
+                                    parsed["stage"],
+                                    parsed["ptr"],
+                                    str(int(parsed["start_time_ns"]) // 1000000)
+                                ]
+                                value_str = ",".join(values)
+                                io_dump_msg.append(value_str)
+                        else:
+                            logging.info(f"io_dump parse err, info : {line.strip()}")
+                        count += 1
                 if count > 0:
+                    IO_DUMP_DATA[disk_name][stage][Io_Category[category]].insert(0, io_dump_msg)
                     logging.info(f"io_dump info : {disk_name}, {stage}, {Io_Category[category]}, {count}")
         except FileNotFoundError:
             logging.error("The file %s does not exist.", io_dump_file)
@@ -211,6 +284,7 @@ class CollectIo():
             self.disk_map_stage[disk_name] = stage_list
             self.window_value[disk_name] = {}
             IO_GLOBAL_DATA[disk_name] = {}
+            IO_DUMP_DATA[disk_name] = {}
 
         return len(IO_GLOBAL_DATA) != 0
     
@@ -226,13 +300,16 @@ class CollectIo():
             self.disk_map_stage[disk_name] = EBPF_STAGE_LIST
             self.window_value[disk_name] = {}
             IO_GLOBAL_DATA[disk_name] = {}
+            IO_DUMP_DATA[disk_name] = {}
         
         for disk_name, stage_list in self.disk_map_stage.items():
             for stage in stage_list:
                 self.window_value[disk_name][stage] = {}
                 IO_GLOBAL_DATA[disk_name][stage] = {}
+                IO_DUMP_DATA[disk_name][stage] = {}
                 for category in Io_Category:
                     IO_GLOBAL_DATA[disk_name][stage][category] = []
+                    IO_DUMP_DATA[disk_name][stage][category] = []
                     self.window_value[disk_name][stage][category] = [[0,0,0], [0,0,0]]
 
         return major_version in EBPF_SUPPORT_VERSION and os.path.exists('/usr/bin/ebpf_collector') and len(IO_GLOBAL_DATA) != 0 
@@ -311,6 +388,8 @@ class CollectIo():
                             return
                         if (len(IO_GLOBAL_DATA[disk_name][stage][io_type])) >= self.max_save:
                             IO_GLOBAL_DATA[disk_name][stage][io_type].pop()
+                        if (len(IO_DUMP_DATA[disk_name][stage][io_type])) >= self.max_save:
+                            IO_DUMP_DATA[disk_name][stage][io_type].pop()
                         curr_finish_count, curr_latency, curr_io_dump_count = self.window_value[disk_name][stage][io_type][-1]
                         prev_finish_count, prev_latency, prev_io_dump_count = self.window_value[disk_name][stage][io_type][-2]
                         self.window_value[disk_name][stage][io_type].pop(0)
@@ -322,6 +401,7 @@ class CollectIo():
                         if curr_io_dump > 0:
                             logging.info(f"ebpf io_dump info : {disk_name}, {stage}, {io_type}, {curr_io_dump}")
                         IO_GLOBAL_DATA[disk_name][stage][io_type].insert(0, [curr_lat, curr_io_dump, curr_io_length, curr_iops])
+                        IO_DUMP_DATA[disk_name][stage][io_type].insert(0, [])
 
             elapsed_time = time.time() - start_time
             sleep_time = self.period_time - elapsed_time
@@ -419,6 +499,7 @@ class CollectIo():
 
     def main_loop(self):
         global IO_GLOBAL_DATA
+        global IO_DUMP_DATA
         logging.info("collect io thread start")
         
         if self.is_kernel_avaliable() and len(self.disk_map_stage) != 0:
@@ -426,8 +507,11 @@ class CollectIo():
                 for stage in stage_list:
                     self.window_value[disk_name][stage] = []
                     IO_GLOBAL_DATA[disk_name][stage] = {}
+                    IO_DUMP_DATA[disk_name][stage] = {}
                     for category in Io_Category:
                         IO_GLOBAL_DATA[disk_name][stage][category] = []
+                        IO_DUMP_DATA[disk_name][stage][category] = []
+                    self.update_io_threshold(disk_name, stage_list)
 
             while True:
                 start_time = time.time()

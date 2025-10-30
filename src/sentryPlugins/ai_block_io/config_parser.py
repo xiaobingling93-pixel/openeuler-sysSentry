@@ -17,9 +17,11 @@ from .alarm_report import Report
 from .threshold import ThresholdType
 from .utils import get_threshold_type_enum, get_sliding_window_type_enum, get_log_level
 from .data_access import check_detect_frequency_is_valid
+from .extra_logger import init_extra_logger
 
 
 LOG_FORMAT = "%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
+AI_EXTRA_LOG_PATH = "/var/log/sysSentry/ai_block_io_extra.log"
 
 ALL_STAGE_LIST = [
     "throtl",
@@ -52,6 +54,7 @@ def init_log_format(log_level: str):
         logging.warning(
             "the log_level: %s you set is invalid, use default value: info.", log_level
         )
+    init_extra_logger(AI_EXTRA_LOG_PATH, get_log_level(log_level.lower()), LOG_FORMAT)
 
 
 class ConfigParser:
@@ -71,7 +74,8 @@ class ConfigParser:
             "n_sigma_parameter": 3.0,
             "win_type": get_sliding_window_type_enum("not_continuous"),
             "win_size": 30,
-            "win_threshold": 6,
+            "win_threshold_latency": 6,
+            "win_threshold_iodump": 3,
         },
         "latency_sata_ssd": {
             "read_avg_lim": 10000,
@@ -423,11 +427,11 @@ class ConfigParser:
         )
 
     def _read_window_minimum_threshold(self, items_sliding_window: dict):
-        default_window_minimum_threshold = self.DEFAULT_CONF["algorithm"]["win_threshold"]
-        self._conf["algorithm"]["win_threshold"] = (
+        default_window_minimum_threshold = self.DEFAULT_CONF["algorithm"]["win_threshold_latency"]
+        self._conf["algorithm"]["win_threshold_latency"] = (
             self._get_config_value(
                 items_sliding_window,
-                "win_threshold",
+                "win_threshold_latency",
                 int,
                 default_window_minimum_threshold,
                 gt=0,
@@ -495,6 +499,7 @@ class ConfigParser:
             self._read_sliding_window_type(items_algorithm)
             self._read_window_size(items_algorithm)
             self._read_window_minimum_threshold(items_algorithm)
+            self._read_window_threshold_iodump(items_algorithm)
 
         if con.has_section("latency_sata_ssd"):
             items_latency_sata_ssd = dict(con.items("latency_sata_ssd"))
@@ -702,7 +707,8 @@ class ConfigParser:
     def get_window_size_and_window_minimum_threshold(self):
         return (
             self._conf["algorithm"]["win_size"],
-            self._conf["algorithm"]["win_threshold"],
+            self._conf["algorithm"]["win_threshold_latency"],
+            self._conf["algorithm"]["win_threshold_iodump"],
         )
 
     @property
@@ -731,7 +737,7 @@ class ConfigParser:
 
     @property
     def window_minimum_threshold(self):
-        return self._conf["algorithm"]["win_threshold"]
+        return self._conf["algorithm"]["win_threshold_latency"]
 
     @property
     def absolute_threshold(self):
@@ -768,3 +774,16 @@ class ConfigParser:
     @property
     def write_iodump_lim(self):
         return self._conf["iodump"]["write_iodump_lim"]
+
+    def _read_window_threshold_iodump(self, items_sliding_window: dict):
+        default_window_threshold_iodump = self.DEFAULT_CONF["algorithm"]["win_threshold_iodump"]
+        self._conf["algorithm"]["win_threshold_iodump"] = (
+            self._get_config_value(
+                items_sliding_window,
+                "win_threshold_iodump",
+                int,
+                default_window_threshold_iodump,
+                gt=0,
+                le=self._conf["algorithm"]["win_size"],
+            )
+        )
