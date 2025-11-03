@@ -52,6 +52,7 @@ LIMIT_MAX_SAVE_LEN = 300
 class ClientProtocol():
     IS_IOCOLLECT_VALID = 0
     GET_IO_DATA = 1
+    GET_IODUMP_DATA = 2
     PRO_END = 3
 
 class ResultMessage():
@@ -234,14 +235,8 @@ def inter_is_iocollect_valid(period, disk_list=None, stage=None):
     result['message'] = result_message
     return result
 
-def get_io_data(period, disk_list, stage, iotype):
-    result = inter_get_io_data(period, disk_list, stage, iotype)
-    error_code = result['ret']
-    if error_code != ResultMessage.RESULT_SUCCEED:
-        result['message'] = Result_Messages[error_code]
-    return result
 
-def inter_get_io_data(period, disk_list, stage, iotype):
+def inter_get_io_common(period, disk_list, stage, iotype, protocol):
     result = {}
     result['ret'] = ResultMessage.RESULT_UNKNOWN
     result['message'] = ""
@@ -269,27 +264,44 @@ def inter_get_io_data(period, disk_list, stage, iotype):
         return result
 
     req_msg_struct = {
-            'disk_list': json.dumps(disk_list),
-            'period': period,
-            'stage': json.dumps(stage),
-            'iotype' : json.dumps(iotype)
-        }
+        'disk_list': json.dumps(disk_list),
+        'period': period,
+        'stage': json.dumps(stage),
+        'iotype': json.dumps(iotype)
+    }
 
     request_message = json.dumps(req_msg_struct)
-    result_message = client_send_and_recv(request_message, CLT_MSG_LEN_LEN, ClientProtocol.GET_IO_DATA)
+    result_message = client_send_and_recv(request_message, CLT_MSG_LEN_LEN, protocol)
     if not result_message:
         logging.error("collect_plugin: client_send_and_recv failed")
         return result
     try:
         json.loads(result_message)
     except json.JSONDecodeError:
-        logging.error("get_io_data: json decode error")
+        logging.error("get_io_common: json decode error")
         result['ret'] = ResultMessage.RESULT_PARSE_FAILED
         return result
 
     result['ret'] = ResultMessage.RESULT_SUCCEED
     result['message'] = result_message
     return result
+
+
+def get_io_data(period, disk_list, stage, iotype):
+    result = inter_get_io_common(period, disk_list, stage, iotype, ClientProtocol.GET_IO_DATA)
+    error_code = result['ret']
+    if error_code != ResultMessage.RESULT_SUCCEED:
+        result['message'] = Result_Messages[error_code]
+    return result
+
+
+def get_iodump_data(period, disk_list, stage, iotype):
+    result = inter_get_io_common(period, disk_list, stage, iotype, ClientProtocol.GET_IODUMP_DATA)
+    error_code = result['ret']
+    if error_code != ResultMessage.RESULT_SUCCEED:
+        result['message'] = Result_Messages[error_code]
+    return result
+
 
 def get_disk_type(disk):
     result = {}

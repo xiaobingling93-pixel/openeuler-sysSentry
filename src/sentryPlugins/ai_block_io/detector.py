@@ -13,8 +13,8 @@ from datetime import datetime
 
 from .io_data import MetricName
 from .threshold import Threshold
-from .sliding_window import SlidingWindow
-from .utils import get_metric_value_from_io_data_dict_by_metric_name
+from .sliding_window import SlidingWindow, DataWindow
+from .utils import get_metric_value_from_io_data_dict_by_metric_name, get_metric_value_from_iodump_data_dict
 
 
 class Detector:
@@ -74,6 +74,35 @@ class Detector:
                 f' sliding_window_type: {self._slidingWindow}')
 
 
+class DataDetector:
+
+    def __init__(self, metric_name: MetricName, data_window: DataWindow):
+        self._metric_name = metric_name
+        self._data_window = data_window
+
+    def __repr__(self):
+        return (f'disk_name: {self._metric_name.disk_name}, stage_name: {self._metric_name.stage_name},'
+                f' io_type_name: {self._metric_name.io_access_type_name},'
+                f' metric_name: {self._metric_name.metric_name}')
+
+    @property
+    def metric_name(self):
+        return self._metric_name
+
+    def get_data_window_data(self):
+        return self._data_window.get_data()
+
+    def push_data(self, iodump_data_dict_with_disk_name: dict):
+        logging.debug(f'enter Detector: {self}')
+        metric_value = get_metric_value_from_iodump_data_dict(iodump_data_dict_with_disk_name, self._metric_name)
+        if metric_value is None:
+            logging.debug('not found metric value, so return None.')
+            return False
+        logging.debug(f'input metric value: {str(metric_value)}')
+        self._data_window.push(metric_value)
+        return True
+
+
 def set_to_str(parameter: set):
     ret = ""
     parameter = list(parameter)
@@ -91,19 +120,43 @@ class DiskDetector:
     def __init__(self, disk_name: str):
         self._disk_name = disk_name
         self._detector_list = []
+        self._data_detector_list = []
+
+    def __repr__(self):
+        msg = f'disk: {self._disk_name}, '
+        for detector in self._detector_list:
+            msg += f'\n detector: [{detector}]'
+        for data_detector in self._data_detector_list:
+            msg += f'\n data_detector: [{data_detector}]'
+        return msg
 
     def add_detector(self, detector: Detector):
         self._detector_list.append(detector)
 
+    def add_data_detector(self, data_detector: DataDetector):
+        self._data_detector_list.append(data_detector)
+
     def get_detector_list_window(self):
         latency_wins = {"read": {}, "write": {}}
         iodump_wins = {"read": {}, "write": {}}
+        iops_wins = {"read": {}, "write": {}}
         for detector in self._detector_list:
             if detector.metric_name.metric_name == 'latency':
                 latency_wins[detector.metric_name.io_access_type_name][detector.metric_name.stage_name] = detector.get_sliding_window_data()
             elif detector.metric_name.metric_name == 'io_dump':
                 iodump_wins[detector.metric_name.io_access_type_name][detector.metric_name.stage_name] = detector.get_sliding_window_data()
-        return latency_wins, iodump_wins
+            elif detector.metric_name.metric_name == 'iops':
+                iops_wins[detector.metric_name.io_access_type_name][detector.metric_name.stage_name] =\
+                      detector.get_sliding_window_data()
+        return latency_wins, iodump_wins, iops_wins
+
+    def get_data_detector_list_window(self):
+        iodump_data_wins = {"read": {}, "write": {}}
+        for data_detector in self._data_detector_list:
+            if data_detector.metric_name.metric_name == 'iodump_data':
+                iodump_data_wins[data_detector.metric_name.io_access_type_name][data_detector.metric_name.stage_name] =\
+                      data_detector.get_data_window_data()
+        return iodump_data_wins
 
     def is_slow_io_event(self, io_data_dict_with_disk_name: dict):
         diagnosis_info = {"bio": [], "rq_driver": [], "kernel_stack": []}
@@ -134,8 +187,8 @@ class DiskDetector:
                 io_type.add(metric_name.io_access_type_name)
                 alarm_type.add(metric_name.metric_name)
 
-        latency_wins, iodump_wins = self.get_detector_list_window()
-        details = {"latency": latency_wins, "iodump": iodump_wins}
+        latency_wins, iodump_wins, iops_wins = self.get_detector_list_window()
+        details = {"latency": latency_wins, "iodump": iodump_wins, "iops": iops_wins}
 
         io_press = {"throtl", "wbt", "iocost", "bfq"}
         driver_slow = {"rq_driver"}
@@ -150,8 +203,6 @@ class DiskDetector:
 
         return True, driver_name, reason, set_to_str(block_stack), set_to_str(io_type), set_to_str(alarm_type), details
 
-    def __repr__(self):
-        msg = f'disk: {self._disk_name}, '
-        for detector in self._detector_list:
-            msg += f'\n detector: [{detector}]'
-        return msg
+    def push_data_to_data_detectors(self, iodump_data_dict_with_disk_name: dict):
+        for data_detector in self._data_detector_list:
+            data_detector.push_data(iodump_data_dict_with_disk_name)

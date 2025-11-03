@@ -11,7 +11,7 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 
 @dataclass
@@ -42,6 +42,36 @@ class IOData:
     requeue: IOStageData = field(default_factory=lambda: IOStageData())
     rq_driver: IOStageData = field(default_factory=lambda: IOStageData())
     bio: IOStageData = field(default_factory=lambda: IOStageData())
+    deadline: IOStageData = field(default_factory=lambda: IOStageData())
+    time_stamp: float = field(default_factory=lambda: datetime.now().timestamp())
+
+
+@dataclass
+class IoDumpListData:
+    iodump_data: List[str] = field(default_factory=list)
+
+
+@dataclass
+class IOStageDumpData:
+    read: IoDumpListData = field(default_factory=lambda: IoDumpListData())
+    write: IoDumpListData = field(default_factory=lambda: IoDumpListData())
+    flush: IoDumpListData = field(default_factory=lambda: IoDumpListData())
+    discard: IoDumpListData = field(default_factory=lambda: IoDumpListData())
+
+
+@dataclass
+class IODumpData:
+    throtl: IOStageDumpData = field(default_factory=lambda: IOStageDumpData())
+    wbt: IOStageDumpData = field(default_factory=lambda: IOStageDumpData())
+    gettag: IOStageDumpData = field(default_factory=lambda: IOStageDumpData())
+    iocost: IOStageDumpData = field(default_factory=lambda: IOStageDumpData())
+    plug: IOStageDumpData = field(default_factory=lambda: IOStageDumpData())
+    bfq: IOStageDumpData = field(default_factory=lambda: IOStageDumpData())
+    hctx: IOStageDumpData = field(default_factory=lambda: IOStageDumpData())
+    requeue: IOStageDumpData = field(default_factory=lambda: IOStageDumpData())
+    rq_driver: IOStageDumpData = field(default_factory=lambda: IOStageDumpData())
+    bio: IOStageDumpData = field(default_factory=lambda: IOStageDumpData())
+    deadline: IOStageDumpData = field(default_factory=lambda: IOStageDumpData())
     time_stamp: float = field(default_factory=lambda: datetime.now().timestamp())
 
 

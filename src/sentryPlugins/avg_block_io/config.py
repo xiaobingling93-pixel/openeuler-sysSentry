@@ -24,7 +24,8 @@ CONF_COMMON_PER_TIME = 'period_time'
 
 CONF_ALGO = 'algorithm'
 CONF_ALGO_SIZE = 'win_size'
-CONF_ALGO_THRE = 'win_threshold'
+CONF_ALGO_THRE_LATENCY = 'win_threshold_latency'
+CONF_ALGO_THRE_IODUMP = 'win_threshold_iodump'
 
 CONF_LATENCY = 'latency_{}'
 CONF_IODUMP = 'iodump'
@@ -40,7 +41,8 @@ DEFAULT_PARAM = {
         CONF_COMMON_PER_TIME: 1
     }, CONF_ALGO: {
         CONF_ALGO_SIZE: 30,
-        CONF_ALGO_THRE: 6
+        CONF_ALGO_THRE_LATENCY: 6,
+        CONF_ALGO_THRE_IODUMP: 3
     }, 'latency_nvme_ssd': {
         'read_avg_lim': 10000,
         'write_avg_lim': 10000,
@@ -162,16 +164,26 @@ def read_config_algorithm(config):
         logging.warning(f"Unset {CONF_ALGO}.{CONF_ALGO_SIZE}, use {win_size} as default")
     
     try:
-        win_threshold = int(config.get(CONF_ALGO, CONF_ALGO_THRE))
-        if win_threshold < 1 or win_threshold > 300 or win_threshold > win_size:
-            raise ValueError(f"Invalid {CONF_ALGO}.{CONF_ALGO_THRE}")
+        win_threshold_latency = int(config.get(CONF_ALGO, CONF_ALGO_THRE_LATENCY))
+        if win_threshold_latency < 1 or win_threshold_latency > 300 or win_threshold_latency > win_size:
+            raise ValueError(f"Invalid {CONF_ALGO}.{CONF_ALGO_THRE_LATENCY}")
     except ValueError:
-        report_alarm_fail(f"Invalid {CONF_ALGO}.{CONF_ALGO_THRE} config")
+        report_alarm_fail(f"Invalid {CONF_ALGO}.{CONF_ALGO_THRE_LATENCY} config")
     except configparser.NoOptionError:
-        win_threshold = DEFAULT_PARAM[CONF_ALGO]['win_threshold']
-        logging.warning(f"Unset {CONF_ALGO}.{CONF_ALGO_THRE}, use {win_threshold} as default")
+        win_threshold_latency = DEFAULT_PARAM[CONF_ALGO]['win_threshold_latency']
+        logging.warning(f"Unset {CONF_ALGO}.{CONF_ALGO_THRE_LATENCY}, use {win_threshold_latency} as default")
 
-    return win_size, win_threshold
+    try:
+        win_threshold_iodump = int(config.get(CONF_ALGO, CONF_ALGO_THRE_IODUMP))
+        if win_threshold_iodump < 1 or win_threshold_iodump > 300 or win_threshold_iodump > win_size:
+            raise ValueError(f"Invalid {CONF_ALGO}.{CONF_ALGO_THRE_IODUMP}")
+    except ValueError:
+        report_alarm_fail(f"Invalid {CONF_ALGO}.{CONF_ALGO_THRE_IODUMP} config")
+    except configparser.NoOptionError:
+        win_threshold_iodump = DEFAULT_PARAM[CONF_ALGO][CONF_ALGO_THRE_IODUMP]
+        logging.warning(f"Unset {CONF_ALGO}.{CONF_ALGO_THRE_IODUMP}, use {win_threshold_iodump} as default")
+
+    return win_size, win_threshold_latency, win_threshold_iodump
 
 
 def read_config_latency(config):

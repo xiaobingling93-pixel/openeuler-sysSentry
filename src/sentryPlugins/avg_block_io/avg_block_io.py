@@ -14,11 +14,13 @@ import configparser
 import time
 
 from .config import read_config_log, read_config_common, read_config_algorithm, read_config_latency, read_config_iodump, read_config_stage
-from .stage_window import IoWindow, IoDumpWindow
-from .module_conn import avg_is_iocollect_valid, avg_get_io_data, report_alarm_fail, process_report_data, sig_handler, get_disk_type_by_name, check_disk_list_validation
-from .utils import update_avg_and_check_abnormal
+from .stage_window import IoWindow, IoDumpWindow,IopsWindow,IodumpMsgWindow
+from .module_conn import avg_is_iocollect_valid, avg_get_io_data, avg_get_iodump_data, report_alarm_fail, process_report_data, sig_handler, get_disk_type_by_name, check_disk_list_validation
+from .utils import update_avg_and_check_abnormal, update_avg_iodump_data
+from .extra_logger import init_extra_logger
 
 CONFIG_FILE = "/etc/sysSentry/plugins/avg_block_io.ini"
+AVG_EXTRA_LOG_PATH = "/var/log/sysSentry/avg_block_io_extra.log"
 
 
 def init_io_win(io_dic, config, common_param):
@@ -52,12 +54,23 @@ def init_io_win(io_dic, config, common_param):
                 iodump_lim_value = curr_stage_param.get(iodump_lim_key, common_param.get("iodump", {}).get(iodump_lim_key))
 
                 if avg_lim_value and avg_time_value and tot_lim_value:
-                    io_data[disk_name][stage_name][rw]["latency"] = IoWindow(window_size=io_dic["win_size"], window_threshold=io_dic["win_threshold"], abnormal_multiple=avg_time_value, abnormal_multiple_lim=avg_lim_value, abnormal_time=tot_lim_value)
+                    io_data[disk_name][stage_name][rw]["latency"] = \
+                        IoWindow(window_size=io_dic["win_size"], window_threshold=io_dic["win_threshold_latency"], \
+                                 abnormal_multiple=avg_time_value, abnormal_multiple_lim=avg_lim_value, \
+                                    abnormal_time=tot_lim_value)
                     logging.debug("Successfully create {}-{}-{}-latency window".format(disk_name, stage_name, rw))
 
                 if iodump_lim_value is not None:
-                    io_data[disk_name][stage_name][rw]["iodump"] = IoDumpWindow(window_size=io_dic["win_size"], window_threshold=io_dic["win_threshold"], abnormal_time=iodump_lim_value)
+                    io_data[disk_name][stage_name][rw]["iodump"] =\
+                          IoDumpWindow(window_size=io_dic["win_size"], window_threshold=io_dic["win_threshold_iodump"],\
+                                        abnormal_time=iodump_lim_value)
                     logging.debug("Successfully create {}-{}-{}-iodump window".format(disk_name, stage_name, rw))
+
+                io_data[disk_name][stage_name][rw]["iops"] = IopsWindow(window_size=io_dic["win_size"])
+                logging.debug("Successfully create {}-{}-{}-iops window".format(disk_name, stage_name, rw))
+
+                io_data[disk_name][stage_name][rw]["iodump_data"] = IodumpMsgWindow(window_size=io_dic["win_size"])
+                logging.debug("Successfully create {}-{}-{}-iodump_data window".format(disk_name, stage_name, rw))
     return io_data, io_avg_value
 
 
@@ -124,6 +137,9 @@ def main_loop(io_dic, io_data, io_avg_value):
             logging.error(f"{curr_period_data['msg']}")
             continue
 
+        # 获取iodump的详细信息
+        is_success, iodump_data = avg_get_iodump_data(io_dic)
+
         # 处理周期数据
         reach_size = False
         for disk_name in disk_list:
@@ -132,6 +148,7 @@ def main_loop(io_dic, io_data, io_avg_value):
                     if disk_name in curr_period_data and stage_name in curr_period_data[disk_name] and rw in curr_period_data[disk_name][stage_name]:
                         io_key = (disk_name, stage_name, rw)
                         reach_size = update_avg_and_check_abnormal(curr_period_data, io_key, win_size, io_avg_value, io_data)
+                        update_avg_iodump_data(iodump_data, is_success, io_key, io_data)
 
         # win_size不满时不进行告警判断
         if not reach_size:
@@ -152,6 +169,7 @@ def main():
     log_level = read_config_log(CONFIG_FILE)
     log_format = "%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
     logging.basicConfig(level=log_level, format=log_format)
+    init_extra_logger(AVG_EXTRA_LOG_PATH, log_level, log_format)
 
     # 初始化配置读取
     config = configparser.ConfigParser(comment_prefixes=('#', ';'))
@@ -175,7 +193,7 @@ def main():
 
     # 初始化窗口 -- config读取，对应is_iocollect_valid返回的结果
     # step1. 解析公共配置 --- algorithm
-    io_dic["win_size"], io_dic["win_threshold"] = read_config_algorithm(config)
+    io_dic["win_size"], io_dic["win_threshold_latency"], io_dic["win_threshold_iodump"] = read_config_algorithm(config)
 
     # step2. 解析公共配置 --- latency_xxx
     common_param = read_config_latency(config)

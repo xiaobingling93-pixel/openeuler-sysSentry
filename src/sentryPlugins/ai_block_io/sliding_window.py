@@ -10,6 +10,7 @@
 # See the Mulan PSL v2 for more details.
 
 from enum import Enum, unique
+from typing import Any
 import numpy as np
 
 
@@ -33,10 +34,8 @@ class SlidingWindow:
     def is_abnormal(self, data):
         if self._avg_lim is not None and data < self._avg_lim:
             return False
-        if self._avg_lim is not None and self._ai_threshold is not None:
-            threshold = max(self._avg_lim, self._ai_threshold)
-            if data > threshold:
-                return True
+        if self._ai_threshold is not None and data > self._ai_threshold:
+            return True
         if self._abs_threshold is not None and data > self._abs_threshold:
             return True
         return False
@@ -130,3 +129,20 @@ class SlidingWindowFactory:
             return MedianSlidingWindow(*args, **kwargs)
         else:
             return NotContinuousSlidingWindow(*args, **kwargs)
+
+
+class DataWindow:
+    def __init__(self, window_size: int):
+        self._window_size = window_size
+        self._data_queue = []
+
+    def __repr__(self):
+        return f"[SingleDataWindow, window size: {self._window_size}]"
+
+    def push(self, data: Any):
+        if len(self._data_queue) == self._window_size:
+            self._data_queue.pop(0)
+        self._data_queue.append(data)
+
+    def get_data(self):
+        return self._data_queue

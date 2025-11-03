@@ -31,6 +31,10 @@ CONF_IO_DISK = 'disk'
 CONF_IO_PERIOD_TIME_DEFAULT = 1
 CONF_IO_MAX_SAVE_DEFAULT = 10
 CONF_IO_DISK_DEFAULT = "default"
+CONF_IO_NVME_SSD = "nvme_ssd_threshold"
+CONF_IO_SATA_SSD = "sata_ssd_threshold"
+CONF_IO_SATA_HDD = "sata_hdd_threshold"
+CONF_IO_THRESHOLD_DEFAULT = 1000
 
 # log
 CONF_LOG = 'log'
@@ -143,6 +147,36 @@ class CollectConfig:
             result_io_config[CONF_IO_DISK] = CONF_IO_DISK_DEFAULT
         logging.debug("config get_io_config: %s", result_io_config)
         return result_io_config
+
+    def get_io_threshold(self):
+        result_io_threshold = {}
+        io_map_value = self.load_module_config(CONF_IO)
+        # nvme ssd threshold
+        nvme_ssd_threshold = io_map_value.get(CONF_IO_NVME_SSD)
+        if nvme_ssd_threshold and nvme_ssd_threshold.isdigit() and int(nvme_ssd_threshold) >= 1:
+            result_io_threshold[CONF_IO_NVME_SSD] = int(nvme_ssd_threshold)
+        else:
+            logging.warning("module_name = %s section, field = %s is incorrect, use default %d", 
+                CONF_IO, CONF_IO_NVME_SSD, CONF_IO_THRESHOLD_DEFAULT)
+            result_io_threshold[CONF_IO_NVME_SSD] = CONF_IO_THRESHOLD_DEFAULT
+        # sata ssd threshold
+        sata_ssd_threshold = io_map_value.get(CONF_IO_SATA_SSD)
+        if sata_ssd_threshold and sata_ssd_threshold.isdigit() and int(sata_ssd_threshold) >= 1:
+            result_io_threshold[CONF_IO_SATA_SSD] = int(sata_ssd_threshold)
+        else:
+            logging.warning("module_name = %s section, field = %s is incorrect, use default %d", 
+                CONF_IO, CONF_IO_SATA_SSD, CONF_IO_THRESHOLD_DEFAULT)
+            result_io_threshold[CONF_IO_SATA_SSD] = CONF_IO_THRESHOLD_DEFAULT
+        # sata hdd threshold
+        sata_hdd_threshold = io_map_value.get(CONF_IO_SATA_HDD)
+        if sata_hdd_threshold and sata_hdd_threshold.isdigit() and int(sata_hdd_threshold) >= 1:
+            result_io_threshold[CONF_IO_SATA_HDD] = int(sata_hdd_threshold)
+        else:
+            logging.warning("module_name = %s section, field = %s is incorrect, use default %d", 
+                CONF_IO, CONF_IO_SATA_HDD, CONF_IO_THRESHOLD_DEFAULT)
+            result_io_threshold[CONF_IO_SATA_HDD] = CONF_IO_THRESHOLD_DEFAULT
+        logging.debug("config get_io_threshold: %s", result_io_threshold)
+        return result_io_threshold
 
     def get_common_config(self):
         return {key.lower(): value for key, value in self.config['common'].items()}

@@ -24,7 +24,7 @@ import select
 import threading
 import time
 
-from .collect_io import IO_GLOBAL_DATA, IO_CONFIG_DATA
+from .collect_io import IO_GLOBAL_DATA, IO_CONFIG_DATA, IO_DUMP_DATA
 from .collect_config import CollectConfig
 
 SENTRY_RUN_DIR = "/var/run/sysSentry"
@@ -48,6 +48,7 @@ RES_MAGIC = "RES"
 class ServerProtocol():
     IS_IOCOLLECT_VALID = 0
     GET_IO_DATA = 1
+    GET_IODUMP_DATA = 2
     PRO_END = 3
 
 class CollectServer():
@@ -57,6 +58,46 @@ class CollectServer():
         self.io_global_data = {}
 
         self.stop_event = threading.Event()
+
+    @staticmethod
+    def get_io_common(data_struct, data_source):
+        result_rev = {}
+
+        if len(IO_CONFIG_DATA) == 0:
+            logging.error("the collect thread is not started, the data is invalid.")
+            return json.dumps(result_rev)
+        period_time = IO_CONFIG_DATA[0]
+        max_save = IO_CONFIG_DATA[1]
+
+        period = int(data_struct['period'])
+        disk_list = json.loads(data_struct['disk_list'])
+        stage_list = json.loads(data_struct['stage'])
+        iotype_list = json.loads(data_struct['iotype'])
+
+        if (period < period_time) or (period > period_time * max_save) or (period % period_time):
+            logging.error("get_io_common: period time is invalid, user period: %d, config period_time: %d",
+                           period, period_time)
+            return json.dumps(result_rev)
+
+        collect_index = period // period_time - 1
+        logging.debug("user period: %d, config period_time: %d,  collect_index: %d", period, period_time, collect_index)
+
+        for disk_name, stage_info in data_source.items():
+            if disk_name not in disk_list:
+                continue
+            result_rev[disk_name] = {}
+            for stage_name, iotype_info in stage_info.items():
+                if len(stage_list) > 0 and stage_name not in stage_list:
+                    continue
+                result_rev[disk_name][stage_name] = {}
+                for iotype_name, iotype_data in iotype_info.items():
+                    if iotype_name not in iotype_list:
+                        continue
+                    if len(iotype_data) - 1 < collect_index:
+                        continue
+                    result_rev[disk_name][stage_name][iotype_name] = iotype_data[collect_index]
+
+        return json.dumps(result_rev)
 
     def is_iocollect_valid(self, data_struct):
 
@@ -92,43 +133,11 @@ class CollectServer():
         return json.dumps(result_rev)
 
     def get_io_data(self, data_struct):
-        result_rev = {}
         self.io_global_data = IO_GLOBAL_DATA
+        return self.get_io_common(data_struct, self.io_global_data)
 
-        if len(IO_CONFIG_DATA) == 0:
-            logging.error("the collect thread is not started, the data is invalid.")
-            return json.dumps(result_rev)
-        period_time = IO_CONFIG_DATA[0]
-        max_save = IO_CONFIG_DATA[1]
-
-        period = int(data_struct['period'])
-        disk_list = json.loads(data_struct['disk_list'])
-        stage_list = json.loads(data_struct['stage'])
-        iotype_list = json.loads(data_struct['iotype'])
-
-        if (period < period_time) or (period > period_time * max_save) or (period % period_time):
-            logging.error("get_io_data: period time is invalid, user period: %d, config period_time: %d", period, period_time)
-            return json.dumps(result_rev)
-
-        collect_index = period // period_time - 1
-        logging.debug("user period: %d, config period_time: %d,  collect_index: %d", period, period_time, collect_index)
-
-        for disk_name, stage_info in self.io_global_data.items():
-            if disk_name not in disk_list:
-                continue
-            result_rev[disk_name] = {}
-            for stage_name, iotype_info in stage_info.items():
-                if len(stage_list) > 0 and stage_name not in stage_list:
-                    continue
-                result_rev[disk_name][stage_name] = {}
-                for iotype_name, iotype_info in iotype_info.items():
-                    if iotype_name not in iotype_list:
-                        continue
-                    if len(iotype_info) - 1 < collect_index:
-                        continue
-                    result_rev[disk_name][stage_name][iotype_name] = iotype_info[collect_index]
-
-        return json.dumps(result_rev)
+    def get_iodump_data(self, data_struct):
+        return self.get_io_common(data_struct, IO_DUMP_DATA)
 
     def msg_data_process(self, msg_data, protocal_id):
         """message data process"""
@@ -144,6 +153,8 @@ class CollectServer():
             res_msg = self.is_iocollect_valid(data_struct)
         elif protocal_id == ServerProtocol.GET_IO_DATA:
             res_msg = self.get_io_data(data_struct)
+        elif protocal_id == ServerProtocol.GET_IODUMP_DATA:
+            res_msg = self.get_iodump_data(data_struct)
 
         return res_msg
 

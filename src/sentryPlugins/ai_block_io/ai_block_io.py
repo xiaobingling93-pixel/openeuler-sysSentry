@@ -14,19 +14,21 @@ import signal
 import logging
 from collections import defaultdict
 
-from .detector import Detector, DiskDetector
+from .detector import Detector, DiskDetector, DataDetector
 from .threshold import ThresholdFactory, ThresholdType
-from .sliding_window import SlidingWindowFactory
+from .sliding_window import SlidingWindowFactory, DataWindow
 from .utils import get_data_queue_size_and_update_size
 from .config_parser import ConfigParser
 from .data_access import (
     get_io_data_from_collect_plug,
+    get_iodump_data_from_collect_plug,
     check_collect_valid,
     get_disk_type,
     check_disk_is_available
 )
 from .io_data import MetricName
 from .alarm_report import Xalarm, Report
+from .extra_logger import extra_slow_log
 
 CONFIG_FILE = "/etc/sysSentry/plugins/ai_block_io.ini"
 
@@ -93,6 +95,8 @@ class SlowIODetection:
                 for iotype in iotypes:
                     self._detector_name_list[disk].append(MetricName(disk, disk_type, stage, iotype, "latency"))
                     self._detector_name_list[disk].append(MetricName(disk, disk_type, stage, iotype, "io_dump"))
+                    self._detector_name_list[disk].append(MetricName(disk, disk_type, stage, iotype, "iops"))
+                    self._detector_name_list[disk].append(MetricName(disk, disk_type, stage, iotype, "iodump_data"))
 
         if not self._detector_name_list:
             Report.report_pass("the disks to detection is empty, ai_block_io will exit.")
@@ -109,7 +113,7 @@ class SlowIODetection:
             train_data_duration, train_update_duration, slow_io_detection_frequency
         )
         sliding_window_type = self._config_parser.sliding_window_type
-        window_size, window_threshold = (
+        window_size, window_threshold_latency, window_threshold_iodump = (
             self._config_parser.get_window_size_and_window_minimum_threshold()
         )
 
@@ -141,7 +145,7 @@ class SlowIODetection:
                     sliding_window = SlidingWindowFactory().get_sliding_window(
                         sliding_window_type,
                         queue_length=window_size,
-                        threshold=window_threshold,
+                        threshold=window_threshold_latency,
                         abs_threshold=tot_lim,
                         avg_lim=avg_lim
                     )
@@ -159,11 +163,26 @@ class SlowIODetection:
                     sliding_window = SlidingWindowFactory().get_sliding_window(
                         sliding_window_type,
                         queue_length=window_size,
-                        threshold=window_threshold
+                        threshold=window_threshold_iodump
                     )
                     detector = Detector(metric_name, threshold, sliding_window)
                     threshold.set_threshold(abs_threshold)
                     disk_detector.add_detector(detector)
+
+                elif metric_name.metric_name == 'iops':
+                    threshold = ThresholdFactory().get_threshold(ThresholdType.AbsoluteThreshold)
+                    sliding_window = SlidingWindowFactory().get_sliding_window(
+                        sliding_window_type,
+                        queue_length=window_size,
+                        threshold=window_threshold_latency
+                    )
+                    detector = Detector(metric_name, threshold, sliding_window)
+                    disk_detector.add_detector(detector)
+
+                elif metric_name.metric_name == 'iodump_data':
+                    data_window = DataWindow(window_size)
+                    data_detector = DataDetector(metric_name, data_window)
+                    disk_detector.add_data_detector(data_detector)
 
             logging.info(f"disk: [{disk}] add detector:\n [{disk_detector}]")
             self._disk_detectors[disk] = disk_detector
@@ -174,6 +193,9 @@ class SlowIODetection:
 
             # Step1：获取IO数据
             io_data_dict_with_disk_name = get_io_data_from_collect_plug(
+                self._config_parser.period_time, self._disk_list
+            )
+            iodump_data_dict_with_disk_name = get_iodump_data_from_collect_plug(
                 self._config_parser.period_time, self._disk_list
             )
             logging.debug(f"step1. Get io data: {str(io_data_dict_with_disk_name)}")
@@ -187,9 +209,13 @@ class SlowIODetection:
             logging.debug("step2. Start to detection slow io event.")
             slow_io_event_list = []
             for disk, disk_detector in self._disk_detectors.items():
+                disk_detector.push_data_to_data_detectors(iodump_data_dict_with_disk_name)
                 result = disk_detector.is_slow_io_event(io_data_dict_with_disk_name)
                 if result[0]:
+                    # 产生告警时获取iodump的详细数据
+                    result[6]["iodump_data"] = disk_detector.get_data_detector_list_window()
                     slow_io_event_list.append(result)
+                
             logging.debug("step2. End to detection slow io event.")
 
             # Step3：慢IO事件上报
@@ -204,17 +230,17 @@ class SlowIODetection:
                     "alarm_type": slow_io_event[5],
                     "details": slow_io_event[6]
                 }
-                Xalarm.major(alarm_content)
-                tmp_alarm_content = alarm_content.copy()
-                del tmp_alarm_content["details"]
-                logging.warning("[SLOW IO] " + str(tmp_alarm_content))
-                logging.warning(f'[SLOW IO] disk: {str(tmp_alarm_content.get("driver_name"))}, '
-                        f'stage: {str(tmp_alarm_content.get("block_stack"))}, '
-                        f'iotype: {str(tmp_alarm_content.get("io_type"))}, '
-                        f'type: {str(tmp_alarm_content.get("alarm_type"))}, '
-                        f'reason: {str(tmp_alarm_content.get("reason"))}')
+                logging.warning(f'[SLOW IO] disk: {str(alarm_content.get("driver_name"))}, '
+                        f'stage: {str(alarm_content.get("block_stack"))}, '
+                        f'iotype: {str(alarm_content.get("io_type"))}, '
+                        f'type: {str(alarm_content.get("alarm_type"))}, '
+                        f'reason: {str(alarm_content.get("reason"))}')
                 logging.warning(f"latency: " + str(alarm_content.get("details").get("latency")))
                 logging.warning(f"iodump: " + str(alarm_content.get("details").get("iodump")))
+                logging.warning(f"iops: " + str(alarm_content.get("details").get("iops")))
+                extra_slow_log(alarm_content)
+                del alarm_content["details"]["iodump_data"] # 极端场景下iodump_data可能过大,导致发送失败,所以只在日志中打印,不发送到告警模块
+                Xalarm.major(alarm_content)
 
             # Step4：等待检测时间
             logging.debug("step4. Wait to start next slow io event detection loop.")
