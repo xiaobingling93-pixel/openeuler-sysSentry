@@ -526,6 +526,7 @@ int send_data_to_socket(const char *socket_path, const char *message)
     // set socket address
     if (memset(&addr, 0, sizeof(struct sockaddr_un)) == NULL) {
         fprintf(stderr, "%s: memset info failed.\n", __func__);
+        close(sockfd);
         return RETURN_CODE_FAIL;
     }
 
