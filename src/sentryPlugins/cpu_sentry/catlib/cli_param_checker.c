@@ -29,7 +29,7 @@ void checkset_cpulist(char *getopt_optarg, catcli_request_body *p_request_body, 
     regcomp(&reg, CPULIST_REGEX, REG_EXTENDED); // 编译正则模式串
     const size_t nmatch = 1;                    // 定义匹配结果最大允许数
     regmatch_t pmatch[1];                       // 定义匹配结果在待匹配串中的下标范围
-    char getopt_optarg_copy[strlen(getopt_optarg)];
+    char getopt_optarg_copy[strlen(getopt_optarg) + 1];
     strcpy(getopt_optarg_copy,getopt_optarg);
     int status = regexec(&reg, getopt_optarg_copy, nmatch, pmatch, 0);
     regfree(&reg); // 释放正则表达式
