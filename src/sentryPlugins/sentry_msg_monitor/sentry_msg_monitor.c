@@ -235,7 +235,7 @@ static void* sender_thread(void* arg) {
             if (ret == -EINVAL) {
                 logging_warn("Send msg to xalarmd failed: (%d) Invalid input value, skip it\n", ret);
                 break;
-            } else if (ret == -ENOTCONN || ret == -ECOMM) {
+            } else if (ret == -ENOTCONN || ret == -ECOMM || ret == -ENODEV) {
                 logging_warn("Send msg to xalarmd failed: (%d) Bad socket conn, try again\n", ret);
                 sleep(RETRY_PERIOD);
             } else if (ret < 0) {

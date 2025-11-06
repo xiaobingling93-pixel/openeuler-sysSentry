@@ -363,7 +363,7 @@ int xalarm_Report(unsigned short usAlarmId, unsigned char ucAlarmLevel,
     fd = socket(AF_UNIX, SOCK_DGRAM, 0);
     if (fd < 0) {
         fprintf(stderr, "%s socket create error: %s\n", __func__, strerror(errno));
-        return -1;
+        return -ENODEV;
     }
 
     ret = init_report_addr(&alarm_addr, PATH_REPORT_ALARM);
@@ -779,7 +779,8 @@ int xalarm_report_event(unsigned short usAlarmId, char *pucParas)
 
     fd = socket(AF_UNIX, SOCK_DGRAM, 0);
     if (fd < 0) {
-        return -ENOTCONN;
+        fprintf(stderr, "%s socket create error: %s\n", __func__, strerror(errno));
+        return -ENODEV;
     }
 
     ret = init_report_addr(&alarm_addr, PATH_REPORT_ALARM);
