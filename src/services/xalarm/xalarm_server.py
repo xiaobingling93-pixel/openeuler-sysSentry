@@ -37,17 +37,17 @@ SOCK_FILE = "/var/run/xalarm/report"
 ALARM_REPORT_LEN = 8216
 ALARM_DIR_PERMISSION = 0o755
 SOCKET_FILE_PERMISSON = 0o666
-PERMISION_MASK = 0o777
-PEROID_CHECK_TIME = 3
+PERMISSION_MASK = 0o777
+PERIOD_CHECK_TIME = 3
 ALARM_LISTEN_QUEUE_LEN = 5
-PEROID_SCANN_TIME = 60
+PERIOD_SCANN_TIME = 60
 fd_to_socket_lock = threading.Lock()
 
 
 def check_permission(path, permission):
     """check whether the permission of path is right
     """
-    return (os.stat(path).st_mode & PERMISION_MASK) == permission
+    return (os.stat(path).st_mode & PERMISSION_MASK) == permission
 
 
 def check_socket_file(path):
@@ -111,15 +111,15 @@ def recover_sock_path_and_permission():
         os.chmod(ALARM_DIR, ALARM_DIR_PERMISSION)
     if os.path.exists(SOCK_FILE) and not check_permission(SOCK_FILE, SOCKET_FILE_PERMISSON):
         logging.info("socket file %s permission %s set not properly, recover as default permission",
-                    SOCK_FILE, oct(os.stat(SOCK_FILE).st_mode & PERMISION_MASK))
+                    SOCK_FILE, oct(os.stat(SOCK_FILE).st_mode & PERMISSION_MASK))
         os.chmod(SOCK_FILE, SOCKET_FILE_PERMISSON)
     if os.path.exists(USER_RECV_SOCK) and not check_permission(USER_RECV_SOCK, SOCKET_FILE_PERMISSON):
         logging.info("socket file %s permission %s set not properly, recover as default permission",
-                    USER_RECV_SOCK, oct(os.stat(USER_RECV_SOCK).st_mode & PERMISION_MASK))
+                    USER_RECV_SOCK, oct(os.stat(USER_RECV_SOCK).st_mode & PERMISSION_MASK))
         os.chmod(USER_RECV_SOCK, SOCKET_FILE_PERMISSON)
 
 
-def peroid_task_to_cleanup_connections():
+def period_task_to_cleanup_connections():
     global alarm_sock
     global alarm_epoll
     global fd_to_socket
@@ -128,7 +128,7 @@ def peroid_task_to_cleanup_connections():
     logging.info("cleanup thread is running")
 
     while True:
-        sleep(PEROID_SCANN_TIME)
+        sleep(PERIOD_SCANN_TIME)
         # if conn thread stopped, cleanup thread should not cleanup anymore
         if conn_thread_should_stop.is_set():
             continue
@@ -187,7 +187,7 @@ def watch_socket_file_and_dir():
         except Exception as e:
             logging.error("Error watch socket file thread: %s", str(e))
     
-        sleep(PEROID_CHECK_TIME)
+        sleep(PERIOD_CHECK_TIME)
 
     
 def start_wait_for_conn_thread(alarm_sock_, alarm_epoll_,
@@ -235,7 +235,7 @@ def server_loop(alarm_config):
         fd_to_socket_lock
     )
 
-    cleanup_thread = threading.Thread(target=peroid_task_to_cleanup_connections)
+    cleanup_thread = threading.Thread(target=period_task_to_cleanup_connections)
     cleanup_thread.daemon = True
     cleanup_thread.start()
 

@@ -130,8 +130,8 @@ enum RESULT_LEVEL {
 #define RESULT_INFO_MAX_LEN 4096
 #define RESULT_INFO_LOG_MGS_MAX_LEN 255
 
-#define RETURE_CODE_FAIL (-1)
-#define RETURE_CODE_SUCCESS 0
+#define RETURN_CODE_FAIL (-1)
+#define RETURN_CODE_SUCCESS 0
 
 extern int report_result(const char *task_name,
                          enum RESULT_LEVEL result_level,

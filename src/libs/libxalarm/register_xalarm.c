@@ -520,13 +520,13 @@ int send_data_to_socket(const char *socket_path, const char *message)
     sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (sockfd == -1) {
         fprintf(stderr, "failed to create socket\n");
-        return RETURE_CODE_FAIL;
+        return RETURN_CODE_FAIL;
     }
 
     // set socket address
     if (memset(&addr, 0, sizeof(struct sockaddr_un)) == NULL) {
         fprintf(stderr, "%s: memset info failed.\n", __func__);
-        return RETURE_CODE_FAIL;
+        return RETURN_CODE_FAIL;
     }
 
     addr.sun_family = AF_UNIX;
@@ -535,18 +535,18 @@ int send_data_to_socket(const char *socket_path, const char *message)
     if (connect(sockfd, (struct sockaddr *)&addr, sizeof(struct sockaddr_un)) == -1) {
         fprintf(stderr, "failed to connect socket %s\n", socket_path);
         close(sockfd);
-        return RETURE_CODE_FAIL;
+        return RETURN_CODE_FAIL;
     }
 
     // write data
     if (write(sockfd, message, strlen(message)) == -1) {
         fprintf(stderr, "failed to send data to socket %s\n", socket_path);
         close(sockfd);
-        return RETURE_CODE_FAIL;
+        return RETURN_CODE_FAIL;
     }
 
     close(sockfd);
-    return RETURE_CODE_SUCCESS;
+    return RETURN_CODE_SUCCESS;
 }
 
 
@@ -600,7 +600,7 @@ static bool is_valid_task_name(const char *task_name)
  */
 int report_result(const char *task_name, enum RESULT_LEVEL result_level, const char *report_data)
 {
-    int ret = RETURE_CODE_FAIL;
+    int ret = RETURN_CODE_FAIL;
     if (result_level < 0 || result_level >= RESULT_LEVEL_NUM) {
         fprintf(stderr, "result_level (%d) is invalid, it must be in [0-5]\n", result_level);
         return ret;
@@ -644,7 +644,7 @@ int report_result(const char *task_name, enum RESULT_LEVEL result_level, const c
         goto free_msg;
     }
 
-    ret = RETURE_CODE_SUCCESS;
+    ret = RETURN_CODE_SUCCESS;
 free_msg:
     free(message);
     message = NULL;
