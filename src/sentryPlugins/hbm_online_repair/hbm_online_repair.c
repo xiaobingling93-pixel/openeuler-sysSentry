@@ -52,7 +52,10 @@ int execute_command(const char *command)
         return -1;
     }
 
-    fgets(buffer, sizeof(buffer), fp);
+    // check return value
+    if (fgets(buffer, sizeof(buffer), fp) == NULL) {
+        log(LOG_DEBUG, "execute_command: no output (EOF) for '%s'\n", command);
+    }
     log(LOG_DEBUG, "output of command %s is: %s\n", command, buffer);
 
     ret = pclose(fp);

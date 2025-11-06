@@ -17,6 +17,7 @@
 #include <sys/un.h>
 #include <linux/fs.h>
 #include <sys/stat.h>
+#include <sys/ioctl.h>
 
 #include "logger.h"
 #include "non-standard-hbm-repair.h"
@@ -642,7 +643,10 @@ static int hbmc_get_memory_type(char *path)
     char buf[128];
     FILE *file;
 
-    snprintf(fname, MAX_PATH, "%s/%s", path, "memory_type");
+    size_t suffix_len = sizeof("/memory_type") - 1;
+    int limit = MAX_PATH - suffix_len - 1;
+    snprintf(fname, MAX_PATH, "%.*s/%s", limit, path, "memory_type");
+
     file = fopen(fname, "r");
     if (!file) {
         log(LOG_WARNING, "HBM: Cannot to open '%s': %s\n",
