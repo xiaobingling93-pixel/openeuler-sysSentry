@@ -23,7 +23,6 @@ void logMessage(LogLevel level, char* file, int line, const char *format, ...)
 
 void setLogLevel()
 {
-    currentLogLevel = LOG_INFO;
     char* levelStr = getenv(LOG_LEVEL_ENV);
     if (levelStr == NULL) {
         logMessage(LOG_WARN, __FILE__, __LINE__, "getenv('%s') is NULL, use default log level : %s\n", LOG_LEVEL_ENV, LOG_LEVEL_STRING(LOG_INFO));
@@ -40,6 +39,7 @@ void setLogLevel()
         currentLogLevel = LOG_DEBUG;
         logMessage(LOG_INFO,__FILE__, __LINE__,"Set log level : %s\n", LOG_LEVEL_STRING(LOG_DEBUG));
     } else {
+        currentLogLevel = LOG_INFO;
         logMessage(LOG_WARN, __FILE__, __LINE__, "unknown log level : %s,  use default log level : %s\n", levelStr, LOG_LEVEL_STRING(LOG_INFO));
     }
 }

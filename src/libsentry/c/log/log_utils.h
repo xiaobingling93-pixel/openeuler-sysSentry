@@ -8,12 +8,12 @@
 #ifndef _SYSSENTRY_LOG_H
 #define _SYSSENTRY_LOG_H
 
-#include "stdio.h"
+#include <stdio.h>
 #include <stdlib.h>
-#include "string.h"
-#include "stdarg.h"
-#include "time.h"
-#include "libgen.h"
+#include <string.h>
+#include <stdarg.h>
+#include <time.h>
+#include <libgen.h>
 
 typedef enum {
     LOG_DEBUG = 0,
