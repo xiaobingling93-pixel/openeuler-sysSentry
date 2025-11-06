@@ -647,7 +647,7 @@ def main():
         logging.error("get pid file lock failed, exist")
         sys.exit(17)
 
-    clientId = -1
+    client_id = -1
     try:
         signal.signal(signal.SIGINT, sig_handler)
         signal.signal(signal.SIGTERM, sig_handler)
@@ -659,14 +659,14 @@ def main():
         _ = SentryConfig.init_param()
         TasksMap.init_task_map()
         load_tasks()
-        clientId = alarm_register()
+        client_id = alarm_register()
         main_loop()
 
     except Exception:
         pass
     finally:
-        if clientId != -1:
-            xalarm_unregister(clientId)
+        if client_id != -1:
+            xalarm_unregister(client_id)
         clean_child()
         release_pidfile()
         remove_sock_file()

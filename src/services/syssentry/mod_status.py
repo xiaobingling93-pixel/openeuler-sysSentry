@@ -28,6 +28,7 @@ FAILED_STATUS = "FAILED"
 WAITING_STATUS = "WAITING"
 
 
+
 def set_task_status(task_name, status_code):
     """set task status"""
     task_type = TasksMap.get_task_type(task_name)

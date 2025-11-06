@@ -1,3 +1,19 @@
+/*
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * sysSentry is licensed under the Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *     http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+ * PURPOSE.
+ * See the Mulan PSL v2 for more details.
+
+ * Description: sentry msg monitor
+ * Author: Luckky
+ * Create: 2025-02-18
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -20,7 +36,8 @@
 #define DEFAULT_LOG_LEVEL LOG_INFO
 #define MAX_RETRY_NUM 3
 #define RETRY_PERIOD 1
-#define XALARM_MSG_ITEM_CNT 2 // msgid_res
+#define XALARM_GENERAL_MSG_ITEM_CNT 2 // msgid_res
+#define XALARM_PANIC_MSG_ITEM_CNT 4 // msgid_{cna:cna,eid:eid}_res
 struct receiver_cleanup_data {
     struct alarm_msg *al_msg;
     struct alarm_register* register_info;
@@ -82,93 +99,152 @@ static int release_pid_file(int fd)
 
 static int smh_dev_get_fd(void)
 {
-	int smh_dev_fd;
+    int smh_dev_fd;
     smh_dev_fd = open(SMH_DEV_PATH, O_RDWR);
     if (smh_dev_fd < 0) {
         logging_error("Failed to open smh_dev_fd for %s.\n", SMH_DEV_PATH);
     }
 
-	return smh_dev_fd;
+    return smh_dev_fd;
+}
+
+static int convert_power_off_smh_smg_to_str(const struct sentry_msg_helper_msg* smh_msg, char* str)
+{
+    int res;
+    res = snprintf(str, MSG_STR_MAX_LEN, "%lu", smh_msg->msgid);
+    if ((size_t)res >= MSG_STR_MAX_LEN) {
+        logging_warn("msg str size exceeds the max value\n");
+        return -1;
+    }
+    return 0;
+}
+
+static int convert_oom_smh_smg_to_str(const struct sentry_msg_helper_msg* smh_msg, char* str)
+{
+    int res;
+    size_t offset = 0;
+
+    char *nid_str = (char *) calloc (MSG_STR_MAX_LEN, sizeof(char));
+    if (!nid_str) {
+        logging_error("Failed to allocate memory!");
+        return -1;
+    }
+    for (int i = 0; i < OOM_EVENT_MAX_NUMA_NODES ; i++) {
+        res = snprintf(nid_str + offset, MSG_STR_MAX_LEN - offset, "%d%s",
+                       smh_msg->helper_msg_info.oom_info.nid[i],
+                       (i < OOM_EVENT_MAX_NUMA_NODES - 1) ? "," : "");
+        if ((size_t)res >= MSG_STR_MAX_LEN) {
+            logging_warn("msg str size exceeds the max value\n");
+            free(nid_str);
+            nid_str = NULL;
+            return -1;
+        }
+        offset += res;
+    }
+    res = snprintf(str, MSG_STR_MAX_LEN,
+                   "%lu_{nr_nid:%d,nid:[%s],sync:%d,timeout:%d,reason:%d}",
+                   smh_msg->msgid,
+                   smh_msg->helper_msg_info.oom_info.nr_nid,
+                   nid_str,
+                   smh_msg->helper_msg_info.oom_info.sync,
+                   smh_msg->helper_msg_info.oom_info.timeout,
+                   smh_msg->helper_msg_info.oom_info.reason);
+    free(nid_str);
+    nid_str = NULL;
+    if ((size_t)res >= MSG_STR_MAX_LEN) {
+        logging_warn("msg str size exceeds the max value\n");
+        return -1;
+    }
+    return 0;
+}
+
+static int convert_remote_smh_smg_to_str(const struct sentry_msg_helper_msg* smh_msg, char* str)
+{
+    int res = snprintf(str, MSG_STR_MAX_LEN, "%lu_{cna:%u,eid:%s}",
+                       smh_msg->msgid,
+                       smh_msg->helper_msg_info.remote_info.cna,
+                       smh_msg->helper_msg_info.remote_info.eid);
+    if ((size_t)res >= MSG_STR_MAX_LEN) {
+        logging_warn("msg str size exceeds the max value\n");
+        return -1;
+    }
+    return 0;
 }
 
 static int convert_smh_msg_to_str(struct sentry_msg_helper_msg* smh_msg, char* str)
 {
     int res;
-    char *nid_str = NULL;
-    size_t offset = 0;
     switch (smh_msg->type) {
-    case SMH_MESSAGE_POWER_OFF:
-        res = snprintf(str, MSG_STR_MAX_LEN, "%lu", smh_msg->msgid);
-        if ((size_t)res >= MSG_STR_MAX_LEN) {
-            logging_warn("msg str size exceeds the max value\n");
+        case SMH_MESSAGE_POWER_OFF:
+            res = convert_power_off_smh_smg_to_str(smh_msg, str);
+            break;
+        case SMH_MESSAGE_OOM:
+            res = convert_oom_smh_smg_to_str(smh_msg, str);
+            break;
+        case SMH_MESSAGE_PANIC:
+        case SMH_MESSAGE_KERNEL_REBOOT:
+            res = convert_remote_smh_smg_to_str(smh_msg, str);
+            break;
+        default:
+            logging_warn("Unknown msg type: %d\n", smh_msg->type);
             return -1;
-        }
-        break;
-    case SMH_MESSAGE_OOM:
-        nid_str = (char *) calloc (MSG_STR_MAX_LEN, sizeof(char));
-        if (!nid_str) {
-            logging_error("Failed to allocate memory!");
-            return -1;
-        }
-        for (int i = 0; i < MAX_NUMA_NODES; i++) {
-            res = snprintf(nid_str + offset, MSG_STR_MAX_LEN - offset, "%d%s", 
-                        smh_msg->oom_info.nid[i], (i < MAX_NUMA_NODES - 1) ? "," : "");
-            if ((size_t)res >= MSG_STR_MAX_LEN) {
-                logging_warn("msg str size exceeds the max value\n");
-                free(nid_str);
-                nid_str = NULL;
-                return -1;
-            }
-            offset += res;
-        }
-        res = snprintf(str, MSG_STR_MAX_LEN,
-            "%lu_{nr_nid:%d,nid:[%s],sync:%d,timeout:%d,reason:%d}",
-            smh_msg->msgid,
-            smh_msg->oom_info.nr_nid,
-            nid_str,
-            smh_msg->oom_info.sync,
-            smh_msg->oom_info.timeout,
-            smh_msg->oom_info.reason
-        );
-        free(nid_str);
-        nid_str = NULL;
-        if ((size_t)res >= MSG_STR_MAX_LEN) {
-            logging_warn("msg str size exceeds the max value\n");
-            return -1;
-        }
-        break;
-    default:
-        logging_warn("Unknown msg type: %d\n", smh_msg->type);
-        return -1;
     }
-    return 0;
+    return res;
 }
 
-static int convert_str_to_smh_msg(char* str, struct sentry_msg_helper_msg* smh_msg)
+static int convert_str_to_smh_msg(struct alarm_msg *al_msg, struct sentry_msg_helper_msg* smh_msg)
 {
-    int n;
-    if (!(sscanf(str, "%lu_%lu%n", &(smh_msg->msgid), &(smh_msg->res), &n) == XALARM_MSG_ITEM_CNT)
-        || strlen(str) != n) {
-        logging_warn("Invalid msg str format, str is %s\n", str);
-        return -1;
+    int n, ret = 0;
+    unsigned short alarm_ack_type = al_msg->usAlarmId;
+    switch (alarm_ack_type) {
+        case ALARM_REBOOT_ACK_EVENT:
+        case ALARM_OOM_ACK_EVENT:
+            if (!(sscanf(al_msg->pucParas, "%lu_%lu%n",
+                         &(smh_msg->msgid),
+                         &(smh_msg->res),
+                         &n) == XALARM_GENERAL_MSG_ITEM_CNT) || strlen(al_msg->pucParas) != n) {
+                logging_warn("Invalid msg str format, str is %s\n", al_msg->pucParas);
+                ret = -1;
+            }
+            break;
+        case ALARM_PANIC_ACK_EVENT:
+        case ALARM_KERNEL_REBOOT_ACK_EVENT:
+            if (!(sscanf(al_msg->pucParas, "%lu_{cna:%u,eid:%39[^}]}_%lu%n",
+                &(smh_msg->msgid),
+                &(smh_msg->helper_msg_info.remote_info.cna),
+                smh_msg->helper_msg_info.remote_info.eid,
+                &(smh_msg->res),
+                &n) == XALARM_PANIC_MSG_ITEM_CNT) || strlen(al_msg->pucParas) != n) {
+                logging_warn("Invalid msg str format, str is %s\n", al_msg->pucParas);
+                ret = -1;
+            }
+            break;
+        default:
+            ret = -1;
+            logging_warn("Unknown ack event type: %d\n", alarm_ack_type);
     }
-    return 0;
+    return ret;
 }
 
 static unsigned short convert_msg_type_to_xalarm_type(enum sentry_msg_helper_msg_type msg_type)
 {
     unsigned short xalarm_type = 0;
-    switch (msg_type)
-    {
-    case SMH_MESSAGE_POWER_OFF:
-        xalarm_type = ALARM_REBOOT_EVENT;
-        break;
-    case SMH_MESSAGE_OOM:
-        xalarm_type = ALARM_OOM_EVENT;
-        break;
-    default:
-        logging_warn("Unknown msg type: %d\n", msg_type);
-        break;
+    switch (msg_type) {
+        case SMH_MESSAGE_POWER_OFF:
+            xalarm_type = ALARM_REBOOT_EVENT;
+            break;
+        case SMH_MESSAGE_OOM:
+            xalarm_type = ALARM_OOM_EVENT;
+            break;
+        case SMH_MESSAGE_PANIC:
+            xalarm_type = ALARM_PANIC_EVENT;
+            break;
+        case SMH_MESSAGE_KERNEL_REBOOT:
+            xalarm_type = ALARM_KERNEL_REBOOT_EVENT;
+            break;
+        default:
+            logging_warn("Unknown msg type: %d\n", msg_type);
+            break;
     }
     return xalarm_type;
 }
@@ -183,8 +259,9 @@ static void sender_cleanup(void* arg)
     logging_info("Sender thread cleanup over\n");
 }
 
-static void* sender_thread(void* arg) {
-    int ret;
+static void* sender_thread(void* arg)
+{
+    int ret, retry_num;
     int fd = smh_dev_get_fd();
     if (fd < 0) {
         goto close_recv;
@@ -221,22 +298,26 @@ static void* sender_thread(void* arg) {
         if (ret < 0) {
             continue;
         }
-        unsigned short al_type = convert_msg_type_to_xalarm_type(smh_msg.type);
-        if (al_type == 0) {
+        unsigned short alarm_type = convert_msg_type_to_xalarm_type(smh_msg.type);
+        if (alarm_type == 0) {
             logging_warn("Send msg to xalarmd failed: Get unknown type msg, skip it\n");
             continue;
         }
+
+        retry_num = 0;
         for (int i = 0; i < MAX_RETRY_NUM; i++) {
-            ret = xalarm_report_event(al_type, str);
+            ret = xalarm_report_event(alarm_type, str);
             if (ret == 0) {
-                logging_info("Send msg success: al_type: %d, str: %s\n", al_type, str);
+                logging_info("Send msg success: alarm_type: %d, str: %s\n", alarm_type, str);
                 break;
             }
             if (ret == -EINVAL) {
                 logging_warn("Send msg to xalarmd failed: (%d) Invalid input value, skip it\n", ret);
                 break;
             } else if (ret == -ENOTCONN || ret == -ECOMM || ret == -ENODEV) {
-                logging_warn("Send msg to xalarmd failed: (%d) Bad socket conn, try again\n", ret);
+                retry_num++;
+                logging_warn("Send msg to xalarmd failed: (%d) Bad socket conn, start the %dth retry in %d seconds.\n",
+                             ret, retry_num, RETRY_PERIOD);
                 sleep(RETRY_PERIOD);
             } else if (ret < 0) {
                 logging_warn("xalarm_report_event return %d\n", ret);
@@ -244,7 +325,7 @@ static void* sender_thread(void* arg) {
             }
         }
         if (ret == -ENOTCONN || ret == -ECOMM) {
-            logging_warn("Send msg to xalarmd failed: (%d) Bad socket conn, skip it\n", ret);
+            logging_warn("Send msg to xalarmd failed after %d retries: Bad socket conn, skip it.\n", retry_num);
         }
     }
 
@@ -254,8 +335,9 @@ sender_err:
     str = NULL;
 close_recv:
     partner_t = *(pthread_t*)arg;
-    if (partner_t)
+    if (partner_t) {
         pthread_cancel(partner_t);
+    }
     logging_error("Sender thread exited unexpectedly\n");
     pthread_cleanup_pop(0);
     return NULL;
@@ -274,8 +356,9 @@ static void receiver_cleanup(void* arg)
     logging_info("Receiver thread cleanup over\n");
 }
 
-static void* receiver_thread(void* arg) {
-    int ret, fd;
+static void* receiver_thread(void* arg)
+{
+    int ret, fd, retry_num;
     struct alarm_msg *al_msg;
     struct sentry_msg_helper_msg smh_msg;
     pthread_t partner_t;
@@ -299,13 +382,18 @@ re_register:
     };
     id_filter.id_list[0] = ALARM_REBOOT_ACK_EVENT;
     id_filter.id_list[1] = ALARM_OOM_ACK_EVENT;
+    id_filter.id_list[2] = ALARM_PANIC_ACK_EVENT;
+    id_filter.id_list[3] = ALARM_KERNEL_REBOOT_ACK_EVENT;
 
+    retry_num = 0;
     for (int i = 0; i < MAX_RETRY_NUM; i++) {
         ret = xalarm_register_event(&register_info, id_filter);
-        if (ret == 0)
+        if (ret == 0) {
             break;
+        }
         if (ret == -ENOTCONN) {
-            logging_warn("Failed to register xalarm, try to re-register again\n");
+            retry_num++;
+            logging_warn("Failed to register xalarm, start the %dth retry in %d seconds.\n", retry_num, RETRY_PERIOD);
             sleep(RETRY_PERIOD);
         } else {
             logging_error("xalarm_register_event return %d\n", ret);
@@ -313,7 +401,8 @@ re_register:
         }
     }
     if (ret == -ENOTCONN) {
-        logging_error("Failed to register xalarm: (%d) bad connection\n", ret);
+        logging_error("Failed to register xalarm after %d retries: bad connection, "
+                      "enter the error handling process\n", retry_num);
         goto receiver_err;
     }
 
@@ -333,24 +422,28 @@ re_register:
             logging_error("xalarm_get_event return %d\n", ret);
             goto un_register;
         } else {
-            logging_info("Get msg: al_type: %d, str: %s\n", al_msg->usAlarmId, al_msg->pucParas);
+            logging_info("Get msg: alarm_type: %d, str: %s\n", al_msg->usAlarmId, al_msg->pucParas);
         }
 
-        ret = convert_str_to_smh_msg(al_msg->pucParas, &smh_msg);
+        ret = convert_str_to_smh_msg(al_msg, &smh_msg);
         if (ret < 0) {
             logging_warn("Convert str failed: Bad format '%s', skip it\n", al_msg->pucParas);
             continue;
         }
+        retry_num = 0;
         for (int i = 0; i < MAX_RETRY_NUM; i++) {
             errno = 0;
             ret = ioctl(fd, SMH_MSG_ACK, &smh_msg);
-            if (ret == 0)
+            if (ret == 0) {
                 break;
+            }
             if (errno == ERESTART || errno == ETIME || errno == ENOENT) {
                 logging_warn("Ack to kernel failed: ioctl return %d, skip it\n", errno);
                 break;
             } else if (errno == EFAULT) {
-                logging_warn("Ack to kernel failed: (%d) Copy from user failed, try again\n", errno);
+                retry_num++;
+                logging_warn("Ack to kernel failed: (%d) Copy from user failed, start the %dth retry in %d seconds.\n",
+                             errno, retry_num, RETRY_PERIOD);
                 sleep(RETRY_PERIOD);
             } else if (ret < 0) {
                 logging_error("Ack to kernel failed: ioctl return %d\n", errno);
@@ -358,7 +451,7 @@ re_register:
             }
         }
         if (errno == EFAULT) {
-            logging_warn("Ack to kernel failed: (%d) Copy from user failed, skip it\n", errno);
+            logging_warn("Ack to kernel failed after %d retries: Copy from user failed, skip it\n", retry_num);
         }
     }
 
@@ -369,8 +462,9 @@ receiver_err:
     close(fd);
 close_send:
     partner_t = *(pthread_t*)arg;
-    if (partner_t)
+    if (partner_t) {
         pthread_cancel(partner_t);
+    }
     logging_error("Receiver thread exited unexpectedly\n");
     pthread_cleanup_pop(0);
     return NULL;
@@ -391,8 +485,8 @@ int main()
         logging_error("Failed to create sender thread");
         goto err_release;
     }
-    ret = pthread_create(&receiver, NULL, receiver_thread, &sender);
 
+    ret = pthread_create(&receiver, NULL, receiver_thread, &sender);
     if (ret) {
         logging_error("Failed to create receiver thread");
         pthread_cancel(sender);
