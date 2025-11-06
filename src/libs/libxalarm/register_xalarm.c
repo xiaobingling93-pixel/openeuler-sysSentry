@@ -312,15 +312,13 @@ char *xalarm_getdesc(const struct alarm_info *palarm)
 
 static int init_report_addr(struct sockaddr_un *alarm_addr, char *report_path)
 {
-    int ret;
-
     if (alarm_addr == NULL) {
         fprintf(stderr, "%s: alarm_addr is null\n", __func__);
         return -1;
     }
 
     if (memset(alarm_addr, 0, sizeof(struct sockaddr_un)) == NULL) {
-        fprintf(stderr, "%s: memset  alarm_addr failed, ret: %d\n", __func__, ret);
+        fprintf(stderr, "%s: memset  alarm_addr failed\n", __func__);
         return -1;
     }
     alarm_addr->sun_family = AF_UNIX;
@@ -332,7 +330,7 @@ static int init_report_addr(struct sockaddr_un *alarm_addr, char *report_path)
 int xalarm_Report(unsigned short usAlarmId, unsigned char ucAlarmLevel,
     unsigned char ucAlarmType, char *pucParas)
 {
-    int ret, fd;
+    int ret = 0, fd;
     struct alarm_info info;
     struct sockaddr_un alarm_addr;
 
@@ -349,7 +347,7 @@ int xalarm_Report(unsigned short usAlarmId, unsigned char ucAlarmLevel,
     }
 
     if (memset(&info, 0, sizeof(struct alarm_info)) == NULL) {
-        fprintf(stderr, "%s: memset info failed, ret: %d\n", __func__, ret);
+        fprintf(stderr, "%s: memset info failed\n", __func__);
         return -1;
     }
     info.usAlarmId = usAlarmId;
