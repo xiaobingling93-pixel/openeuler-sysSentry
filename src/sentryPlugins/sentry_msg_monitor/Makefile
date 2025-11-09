@@ -15,7 +15,7 @@
 all: sentry_msg_monitor
 
 sentry_msg_monitor:
-	gcc sentry_msg_monitor.c -fstack-protector-strong -Wall -D_FORTIFY_SOURCE=2 -O2 -g -Wl,-z,relro -Wl,-z,now -fPIE -pie -I../../libsentry/c/log -L../../libsentry/c/log/build -I../../libs/libxalarm -L../../libs/build/libxalarm -lxalarm -lsentry_log -ljson-c -pthread -o sentry_msg_monitor
+	gcc sentry_msg_monitor.c -fstack-protector-strong -Wall -D_FORTIFY_SOURCE=2 -O2 -g -Wl,-z,relro -Wl,-z,now -fPIE -pie -I../../libsentry/c/log -L../../libsentry/c/log/build -I../../libs/libxalarm -L../../libs/build/libxalarm -lobmm -lxalarm -lsentry_log -ljson-c -pthread -o sentry_msg_monitor
 
 clean:
 	rm -f sentry_msg_monitor

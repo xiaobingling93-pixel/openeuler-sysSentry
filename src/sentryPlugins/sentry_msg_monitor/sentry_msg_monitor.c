@@ -23,6 +23,8 @@
 #include <errno.h>
 #include <pthread.h>
 #include <time.h>
+#include <json-c/json.h>
+#include <libobmm.h>
 
 #include "register_xalarm.h"
 #include "log_utils.h"
@@ -31,7 +33,7 @@
 #define TOOL_NAME "sentry_msg_monitor"
 #define SMH_DEV_PATH "/dev/sentry_msg_helper"
 #define PID_FILE_PATH "/var/run/"TOOL_NAME".pid"
-#define ID_LIST_LENGTH SMH_MESSAGE_MAX
+#define ID_LIST_LENGTH 4  //reboot oom panic kernel_reboot
 #define MSG_STR_MAX_LEN 1024
 #define DEFAULT_LOG_LEVEL LOG_INFO
 #define MAX_RETRY_NUM 3
@@ -108,6 +110,50 @@ static int smh_dev_get_fd(void)
     return smh_dev_fd;
 }
 
+static int convert_ubus_type_to_sentry_type(enum ras_err_type ubus_type)
+{
+    int sentry_type = -1;
+    switch (ubus_type) {
+        case UB_MEM_ATOMIC_DATA_ERR:
+            sentry_type = SENTRY_MEM_ERR_ROUTE;
+            break;
+        case MAR_NOPORT_VLD_INT_ERR:
+            sentry_type = SENTRY_MEM_FLUX_INT;
+            break;
+        case MAR_NEAR_AUTH_FAIL_ERR:
+            sentry_type = SENTRY_MEM_ERR_OUTBOUND_TRANSLATION;
+            break;
+        case MAR_FAR_AUTH_FAIL_ERR:
+        case UB_MEM_FLOW_READ_AUTH_POISON:
+        case UB_MEM_FLOW_READ_AUTH_RESPERR:
+            sentry_type = SENTRY_MEM_ERR_INBOUND_TRANSLATION;
+            break;
+        case MAR_TIMEOUT_ERR:
+        case UB_MEM_TIMEOUT_POISON:
+        case UB_MEM_TIMEOUT_RESPERR:
+            sentry_type = SENTRY_MEM_ERR_TIMEOUT;
+            break;
+        case MAR_ILLEGAL_ACCESS_ERR:
+            sentry_type = SENTRY_MEM_ERR_BUS;
+            break;
+        case REMOTE_READ_DATA_ERR_OR_WRITE_RESPONSE_ERR:
+        case UB_MEM_READ_DATA_ERR:
+        case UB_MEM_FLOW_POISON:
+        case UB_MEM_READ_DATA_POISON:
+        case UB_MEM_READ_DATA_RESPERR:
+            sentry_type = SENTRY_MEM_ERR_UCE;
+            break;
+        case MAR_FLUX_INT_ERR:
+        case MAR_WITHOUT_CXT_ERR:
+            sentry_type = SENTRY_MEM_ERR_NO_REPORT;
+            break;
+        default:
+            logging_warn("Unknown ubus type: %d\n", ubus_type);
+            break;
+    }
+    return sentry_type;
+}
+
 static int convert_power_off_smh_smg_to_str(const struct sentry_msg_helper_msg* smh_msg, char* str)
 {
     int res;
@@ -171,6 +217,63 @@ static int convert_remote_smh_smg_to_str(const struct sentry_msg_helper_msg* smh
     return 0;
 }
 
+static int convert_ub_mem_err_smh_msg_to_str(struct sentry_msg_helper_msg* smh_msg, char* str)
+{
+    enum ras_err_type raw_err_type = smh_msg->helper_msg_info.ub_mem_info.raw_ubus_mem_err_type;
+    int sentry_err_type = convert_ubus_type_to_sentry_type(raw_err_type);
+    // return -1 indicates that only logs are recorded, and no alerts are sent to xalam.
+    if (sentry_err_type == SENTRY_MEM_ERR_NO_REPORT) {
+        logging_info("received kernel event raw_ubus_mem_err_type is %d\n", raw_err_type);
+        return -1;
+    }
+    if (sentry_err_type == -1) {
+        logging_error("raw_ubus_mem_err_type to sentry_ubus_mem_err_type failed, "
+                      "raw_ubus_mem_err_type: %d, sentry_ubus_mem_err_type: %d\n",
+                      raw_err_type, sentry_err_type);
+        return -1;
+    }
+    uint64_t msgid = smh_msg->msgid;
+    uint64_t pa = smh_msg->helper_msg_info.ub_mem_info.pa;
+
+    mem_id id;
+    unsigned long obmm_offset;
+    int result = obmm_query_memid_by_pa(pa, &id, &obmm_offset);
+    if (result < 0) {
+        logging_error("query memid falied, result: %d, errno: %d (%s)\n", result, errno, strerror(errno));
+        return -1;
+    }
+
+    char hex_str[20];
+    int ret = snprintf(hex_str, sizeof(hex_str), "0x%lx", (long)pa);
+    if (ret < 0) {
+        logging_error("convert pa to string failed\n");
+        return -1;
+    }
+    struct json_object *root = json_object_new_object();
+    json_object_object_add(root, "msgid", json_object_new_int64(msgid));
+    json_object_object_add(root, "sentry_ubus_mem_err_type", json_object_new_int(sentry_err_type));
+    json_object_object_add(root, "raw_ubus_mem_err_type", json_object_new_int(raw_err_type));
+    json_object_object_add(root, "pa", json_object_new_string(hex_str));
+    json_object_object_add(root, "memid", json_object_new_int64(id));
+
+    const char* json_str = json_object_to_json_string(root);
+    if (json_str == NULL) {
+        logging_error("json_str return NULL\n");
+        json_object_put(root);
+        return -1;
+    }
+
+    strncpy(str, json_str, MSG_STR_MAX_LEN - 1);
+
+    if (strlen(str) >= MSG_STR_MAX_LEN) {
+        logging_error("msg str size exceeds the max value\n");
+        json_object_put(root);
+        return -1;
+    }
+    json_object_put(root);
+    return 0;
+}
+
 static int convert_smh_msg_to_str(struct sentry_msg_helper_msg* smh_msg, char* str)
 {
     int res;
@@ -184,6 +287,9 @@ static int convert_smh_msg_to_str(struct sentry_msg_helper_msg* smh_msg, char* s
         case SMH_MESSAGE_PANIC:
         case SMH_MESSAGE_KERNEL_REBOOT:
             res = convert_remote_smh_smg_to_str(smh_msg, str);
+            break;
+        case SMH_MESSAGE_UB_MEM_ERR:
+            res = convert_ub_mem_err_smh_msg_to_str(smh_msg, str);
             break;
         default:
             logging_warn("Unknown msg type: %d\n", smh_msg->type);
@@ -241,6 +347,9 @@ static unsigned short convert_msg_type_to_xalarm_type(enum sentry_msg_helper_msg
             break;
         case SMH_MESSAGE_KERNEL_REBOOT:
             xalarm_type = ALARM_KERNEL_REBOOT_EVENT;
+            break;
+        case SMH_MESSAGE_UB_MEM_ERR:
+            xalarm_type = ALARM_UBUS_MEM_EVENT;
             break;
         default:
             logging_warn("Unknown msg type: %d\n", msg_type);
