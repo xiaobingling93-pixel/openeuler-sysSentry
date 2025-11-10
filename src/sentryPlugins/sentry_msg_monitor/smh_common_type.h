@@ -69,6 +69,7 @@ enum sentry_msg_helper_msg_type {
     SMH_MESSAGE_UB_MEM_ERR,
     SMH_MESSAGE_PANIC_ACK,
     SMH_MESSAGE_KERNEL_REBOOT_ACK,
+    SMH_MESSAGE_UNKNOWN,
 };
 
 struct sentry_msg_helper_msg {
@@ -89,8 +90,10 @@ struct sentry_msg_helper_msg {
             uint32_t cna;
             char eid[EID_MAX_LEN];
         } remote_info;
-	struct {
+        struct {
             uint64_t pa;
+            int mem_type;
+            int fault_with_kill;
             enum ras_err_type raw_ubus_mem_err_type;
         } ub_mem_info;
     } helper_msg_info;

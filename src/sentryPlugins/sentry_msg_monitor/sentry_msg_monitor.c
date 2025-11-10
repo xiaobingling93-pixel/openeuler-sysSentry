@@ -29,6 +29,7 @@
 #include "register_xalarm.h"
 #include "log_utils.h"
 #include "smh_common_type.h"
+#include "ub_fault_lib.h"
 
 #define TOOL_NAME "sentry_msg_monitor"
 #define SMH_DEV_PATH "/dev/sentry_msg_helper"
@@ -40,6 +41,8 @@
 #define RETRY_PERIOD 1
 #define XALARM_GENERAL_MSG_ITEM_CNT 2 // msgid_res
 #define XALARM_PANIC_MSG_ITEM_CNT 4 // msgid_{cna:cna,eid:eid}_res
+#define PYHS_ADDR_HEX_STR_MAX_LEN 20
+
 struct receiver_cleanup_data {
     struct alarm_msg *al_msg;
     struct alarm_register* register_info;
@@ -243,7 +246,13 @@ static int convert_ub_mem_err_smh_msg_to_str(struct sentry_msg_helper_msg* smh_m
         return -1;
     }
 
-    char hex_str[20];
+    if (smh_msg->helper_msg_info.ub_mem_info.mem_type == FD_MODE
+        && smh_msg->helper_msg_info.ub_mem_info.fault_with_kill) {
+        logging_info("ub mem event raw type is %d, sending SIGBUS signal to process\n", raw_err_type);
+        find_and_send_sigbus_to_thread(id, obmm_offset);
+    }
+
+    char hex_str[PYHS_ADDR_HEX_STR_MAX_LEN];
     int ret = snprintf(hex_str, sizeof(hex_str), "0x%lx", (long)pa);
     if (ret < 0) {
         logging_error("convert pa to string failed\n");
@@ -401,12 +410,14 @@ static void* sender_thread(void* arg)
                 goto sender_err;
             }
         }
-        logging_debug("Read dev success!\n");
+        logging_info("Read dev success!\n");
 
         ret = convert_smh_msg_to_str(&smh_msg, str);
         if (ret < 0) {
             continue;
         }
+        logging_info("convert_smh_msg_to_str success, msgid is %u\n", smh_msg.msgid);
+
         unsigned short alarm_type = convert_msg_type_to_xalarm_type(smh_msg.type);
         if (alarm_type == 0) {
             logging_warn("Send msg to xalarmd failed: Get unknown type msg, skip it\n");
@@ -417,7 +428,7 @@ static void* sender_thread(void* arg)
         for (int i = 0; i < MAX_RETRY_NUM; i++) {
             ret = xalarm_report_event(alarm_type, str);
             if (ret == 0) {
-                logging_info("Send msg success: alarm_type: %d, str: %s\n", alarm_type, str);
+                logging_info("Send msg success: alarm_type: %d\n", alarm_type);
                 break;
             }
             if (ret == -EINVAL) {
@@ -531,7 +542,7 @@ re_register:
             logging_error("xalarm_get_event return %d\n", ret);
             goto un_register;
         } else {
-            logging_info("Get msg: alarm_type: %d, str: %s\n", al_msg->usAlarmId, al_msg->pucParas);
+            logging_info("Get msg: alarm_type: %d\n", al_msg->usAlarmId);
         }
 
         ret = convert_str_to_smh_msg(al_msg, &smh_msg);
@@ -610,5 +621,6 @@ int main()
 
 err_release:
     release_pid_file(pid_fd);
+    logging_info("sentry_msg_monitor end with ret %d!\n", ret);
     return ret;
 }

@@ -61,6 +61,9 @@ def write_proc_file(proc_dir, proc_name, proc_value):
     finally:
         return exit_code
 
+def set_sentry_reporter_proc(proc_value):
+    return write_proc_file("sentry_reporter", "ub_mem_fault_with_kill", proc_value)
+
 def set_remote_reporter_proc(proc_name, proc_value):
     return write_proc_file("sentry_remote_reporter", proc_name, proc_value)
 
@@ -240,6 +243,9 @@ if __name__ == '__main__':
         "sentry_uvb_comm" : [
             {"name": "server_cna", "type": str, "choices": None, "required" : True, "help": "server cna array"},
         ],
+        "sentry_reporter" : [
+            {"name" : "ub_mem_fault_with_kill", "type" : "str", "choices":  ["on", "off"], "required" : False, "help" : "Enable/Disable sending SIGBUS signal with UB mem event"},
+        ],
     }
     parser_set = subparsers.add_parser('set', help='set plugins params')
     parsers_set_plugin_param = parser_set.add_subparsers(dest="set_task")
@@ -319,7 +325,8 @@ if __name__ == '__main__':
                 ret_code += set_urma_heartbeat(client_args.heartbeat)
         elif client_args.set_task == "sentry_uvb_comm":
             ret_code += set_uvb_proc(client_args.server_cna)
-
+        elif client_args.set_task == "sentry_reporter":
+            ret_code += set_sentry_reporter_proc(client_args.ub_mem_fault_with_kill)
         sys.exit(ret_code)
     else:
         parser.print_help()
