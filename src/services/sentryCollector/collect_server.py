@@ -24,7 +24,7 @@ import select
 import threading
 import time
 
-from .collect_io import IO_GLOBAL_DATA, IO_CONFIG_DATA, IO_DUMP_DATA
+from .collect_io import IO_GLOBAL_DATA, IO_CONFIG_DATA, IO_DUMP_DATA, DISK_DATA
 from .collect_config import CollectConfig
 
 SENTRY_RUN_DIR = "/var/run/sysSentry"
@@ -49,7 +49,8 @@ class ServerProtocol():
     IS_IOCOLLECT_VALID = 0
     GET_IO_DATA = 1
     GET_IODUMP_DATA = 2
-    PRO_END = 3
+    GET_DISK_DATA = 3
+    PRO_END = 4
 
 class CollectServer():
 
@@ -133,11 +134,13 @@ class CollectServer():
         return json.dumps(result_rev)
 
     def get_io_data(self, data_struct):
-        self.io_global_data = IO_GLOBAL_DATA
-        return self.get_io_common(data_struct, self.io_global_data)
+        return self.get_io_common(data_struct, IO_GLOBAL_DATA)
 
     def get_iodump_data(self, data_struct):
         return self.get_io_common(data_struct, IO_DUMP_DATA)
+
+    def get_disk_data(self, data_struct):
+        return self.get_io_common(data_struct, DISK_DATA)
 
     def msg_data_process(self, msg_data, protocal_id):
         """message data process"""
@@ -155,6 +158,8 @@ class CollectServer():
             res_msg = self.get_io_data(data_struct)
         elif protocal_id == ServerProtocol.GET_IODUMP_DATA:
             res_msg = self.get_iodump_data(data_struct)
+        elif protocal_id == ServerProtocol.GET_DISK_DATA:
+            res_msg = self.get_disk_data(data_struct)
 
         return res_msg
 

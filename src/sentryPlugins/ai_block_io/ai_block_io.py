@@ -22,6 +22,7 @@ from .config_parser import ConfigParser
 from .data_access import (
     get_io_data_from_collect_plug,
     get_iodump_data_from_collect_plug,
+    get_disk_data_from_collect_plug,
     check_collect_valid,
     get_disk_type,
     check_disk_is_available
@@ -97,6 +98,7 @@ class SlowIODetection:
                     self._detector_name_list[disk].append(MetricName(disk, disk_type, stage, iotype, "io_dump"))
                     self._detector_name_list[disk].append(MetricName(disk, disk_type, stage, iotype, "iops"))
                     self._detector_name_list[disk].append(MetricName(disk, disk_type, stage, iotype, "iodump_data"))
+                    self._detector_name_list[disk].append(MetricName(disk, disk_type, stage, iotype, "disk_data"))
 
         if not self._detector_name_list:
             Report.report_pass("the disks to detection is empty, ai_block_io will exit.")
@@ -184,6 +186,11 @@ class SlowIODetection:
                     data_detector = DataDetector(metric_name, data_window)
                     disk_detector.add_data_detector(data_detector)
 
+                elif metric_name.metric_name == 'disk_data':
+                    data_window = DataWindow(window_size)
+                    data_detector = DataDetector(metric_name, data_window)
+                    disk_detector.add_data_detector(data_detector)
+
             logging.info(f"disk: [{disk}] add detector:\n [{disk_detector}]")
             self._disk_detectors[disk] = disk_detector
 
@@ -198,6 +205,9 @@ class SlowIODetection:
             iodump_data_dict_with_disk_name = get_iodump_data_from_collect_plug(
                 self._config_parser.period_time, self._disk_list
             )
+            io_disk_data_dict_with_disk_name = get_disk_data_from_collect_plug(
+                self._config_parser.period_time, self._disk_list
+            )
             logging.debug(f"step1. Get io data: {str(io_data_dict_with_disk_name)}")
             if io_data_dict_with_disk_name is None:
                 Report.report_pass(
@@ -210,10 +220,13 @@ class SlowIODetection:
             slow_io_event_list = []
             for disk, disk_detector in self._disk_detectors.items():
                 disk_detector.push_data_to_data_detectors(iodump_data_dict_with_disk_name)
+                disk_detector.push_data_to_data_detectors(io_disk_data_dict_with_disk_name)
                 result = disk_detector.is_slow_io_event(io_data_dict_with_disk_name)
                 if result[0]:
                     # 产生告警时获取iodump的详细数据
-                    result[6]["iodump_data"] = disk_detector.get_data_detector_list_window()
+                    win_data_wins = disk_detector.get_data_detector_list_window()
+                    result[6]["iodump_data"] = win_data_wins['iodump_data']
+                    result[6]["disk_data"] = win_data_wins['disk_data']
                     slow_io_event_list.append(result)
                 
             logging.debug("step2. End to detection slow io event.")
@@ -240,6 +253,7 @@ class SlowIODetection:
                 logging.warning(f"iops: " + str(alarm_content.get("details").get("iops")))
                 extra_slow_log(alarm_content)
                 del alarm_content["details"]["iodump_data"] # 极端场景下iodump_data可能过大,导致发送失败,所以只在日志中打印,不发送到告警模块
+                del alarm_content["details"]["disk_data"]
                 Xalarm.major(alarm_content)
 
             # Step4：等待检测时间

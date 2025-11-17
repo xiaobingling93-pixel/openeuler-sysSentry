@@ -133,7 +133,7 @@ def read_config_common(config):
 
     except configparser.NoOptionError:
         iotype_list = DEFAULT_PARAM[CONF_COMMON][CONF_COMMON_IOTYPE]
-        logging.warning(f"Unset {CONF_COMMON}.{CONF_COMMON_IOTYPE}, use {iotupe_list} as default")
+        logging.warning(f"Unset {CONF_COMMON}.{CONF_COMMON_IOTYPE}, use {iotype_list} as default")
     
     try:
         period_time = int(config.get(CONF_COMMON, CONF_COMMON_PER_TIME))

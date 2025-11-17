@@ -75,6 +75,33 @@ class IODumpData:
     time_stamp: float = field(default_factory=lambda: datetime.now().timestamp())
 
 
+@dataclass
+class IODiskListData:
+    disk_data: List[int] = field(default_factory=list)
+
+
+@dataclass
+class IOStageDiskData:
+    read: IODiskListData = field(default_factory=lambda: IODiskListData())
+    write: IODiskListData = field(default_factory=lambda: IODiskListData())
+
+
+@dataclass
+class IODiskData:
+    throtl: IOStageDiskData = field(default_factory=lambda: IOStageDiskData())
+    wbt: IOStageDiskData = field(default_factory=lambda: IOStageDiskData())
+    gettag: IOStageDiskData = field(default_factory=lambda: IOStageDiskData())
+    iocost: IOStageDiskData = field(default_factory=lambda: IOStageDiskData())
+    plug: IOStageDiskData = field(default_factory=lambda: IOStageDiskData())
+    bfq: IOStageDiskData = field(default_factory=lambda: IOStageDiskData())
+    hctx: IOStageDiskData = field(default_factory=lambda: IOStageDiskData())
+    requeue: IOStageDiskData = field(default_factory=lambda: IOStageDiskData())
+    rq_driver: IOStageDiskData = field(default_factory=lambda: IOStageDiskData())
+    bio: IOStageDiskData = field(default_factory=lambda: IOStageDiskData())
+    deadline: IOStageDiskData = field(default_factory=lambda: IOStageDiskData())
+    time_stamp: float = field(default_factory=lambda: datetime.now().timestamp())
+
+
 @dataclass(frozen=True)
 class MetricName:
     disk_name: str

@@ -148,6 +148,7 @@ def extra_latency_log(msg):
                 )
             except KeyError:
                 return
+        extra_disk_log(msg, io_type)
 
 
 def extra_iodump_log(msg):
@@ -184,3 +185,31 @@ def extra_iodump_log(msg):
             task_name, pid, io_stack, stage, bio_ptr, start_ago = last_bio_record[bio_ptr]
             line = f"{task_name:<18} {pid:>8} {io_stack:<12} {stage:<8} {bio_ptr:<20} {start_ago:>10}"
             extra_logger.warning(line)
+
+
+def extra_disk_log(msg, io_type):
+    disk_data = msg['details']['disk_data'].get(io_type, {})
+
+    try:
+        rq_driver_data = disk_data['rq_driver']
+    except Exception as e:
+        extra_logger.error(f"Failed to parse disk data: {e}")
+        return
+
+    if len(rq_driver_data) == 0:
+        return
+
+    extra_logger.warning(f"disk latency:")
+    header = f"{'0-1ms':>12} {'1-10ms':>12} {'10-100ms':>15} {'100ms-1s':>15} {'1-3s':>12} {'>3s':>12}"
+    extra_logger.warning(header)
+
+    total_data = [0] * 6
+    for period_data in rq_driver_data:
+        for i in range(6):
+            total_data[i] += period_data[i]
+    num_periods = len(rq_driver_data)
+    avg_data = [total // num_periods for total in total_data]
+    extra_logger.warning(
+        f"{avg_data[0]:>12} {avg_data[1]:>12} {avg_data[2]:>15}"
+        f"{avg_data[3]:>15} {avg_data[4]:>12} {avg_data[5]:>12}"
+    )
