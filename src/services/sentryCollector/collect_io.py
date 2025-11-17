@@ -23,11 +23,13 @@ from typing import Union
 from .collect_config import CollectConfig
 from .collect_config import CONF_IO_NVME_SSD, CONF_IO_SATA_SSD, CONF_IO_SATA_HDD, CONF_IO_THRESHOLD_DEFAULT
 from .collect_plugin import get_disk_type, DiskType
+from .collect_disk import CollectDisk
 
 Io_Category = ["read", "write", "flush", "discard"]
 IO_GLOBAL_DATA = {}
 IO_CONFIG_DATA = []
 IO_DUMP_DATA = {}
+DISK_DATA = {}
 EBPF_GLOBAL_DATA = []
 EBPF_PROCESS = None
 EBPF_STAGE_LIST = ["wbt", "rq_driver", "bio", "gettag"]
@@ -45,6 +47,7 @@ class CollectIo():
 
     def __init__(self, module_config):
 
+        self.disk_collectors = {}
         io_config = module_config.get_io_config()
 
         self.period_time = io_config['period_time']
@@ -53,6 +56,7 @@ class CollectIo():
 
         self.disk_map_stage = {}
         self.window_value = {}
+        self.disk_data_window_value = {}
 
         self.ebpf_base_path = 'ebpf_collector'
 
@@ -301,6 +305,7 @@ class CollectIo():
             self.window_value[disk_name] = {}
             IO_GLOBAL_DATA[disk_name] = {}
             IO_DUMP_DATA[disk_name] = {}
+            self.init_disk_collect(disk_name)
         
         for disk_name, stage_list in self.disk_map_stage.items():
             for stage in stage_list:
@@ -376,6 +381,7 @@ class CollectIo():
         self, 
     ) -> None:
         global IO_GLOBAL_DATA
+        global IO_DUMP_DATA
         while True:
             if self.stop_event.is_set():
                 logging.debug("collect io thread exit")
@@ -402,6 +408,7 @@ class CollectIo():
                             logging.info(f"ebpf io_dump info : {disk_name}, {stage}, {io_type}, {curr_io_dump}")
                         IO_GLOBAL_DATA[disk_name][stage][io_type].insert(0, [curr_lat, curr_io_dump, curr_io_length, curr_iops])
                         IO_DUMP_DATA[disk_name][stage][io_type].insert(0, [])
+                self.append_disk_data(disk_name)
 
             elapsed_time = time.time() - start_time
             sleep_time = self.period_time - elapsed_time
@@ -497,6 +504,51 @@ class CollectIo():
             EBPF_PROCESS.wait()
         logging.info("ebpf collector thread exit")
 
+    def init_disk_collect(
+        self,
+        disk_name: str
+    ) -> None:
+        collector = CollectDisk(disk_name)
+        support_flag = collector.get_support_flag()
+        if support_flag:
+            self.disk_collectors[disk_name] = collector
+            self.disk_data_window_value[disk_name] = []
+            DISK_DATA[disk_name] = {}
+            DISK_DATA[disk_name]['rq_driver'] = {}
+            DISK_DATA[disk_name]['rq_driver']['read'] = []
+            DISK_DATA[disk_name]['rq_driver']['write'] = []
+
+    def append_disk_data(
+        self,
+        disk_name: str,
+    ) -> None:
+        if disk_name in self.disk_collectors:
+            collect_disk = self.disk_collectors[disk_name]
+            curr_value = collect_disk.collect_data()
+            if len(curr_value) != 0:
+                self.disk_data_window_value[disk_name].append(curr_value)
+                if len(self.disk_data_window_value[disk_name]) < 2:
+                    return
+                if len(self.disk_data_window_value[disk_name]) > 2:
+                    self.disk_data_window_value[disk_name].pop(0)
+
+                read_data = []
+                write_data = []
+                last_value = self.disk_data_window_value[disk_name][0]
+
+                for i in range(6):
+                    delta = curr_value[i] - last_value[i]
+                    read_data.append(max(0, delta))
+                for i in range(6, 12):
+                    delta = curr_value[i] - last_value[i]
+                    write_data.append(max(0, delta))
+                if len(DISK_DATA[disk_name]['rq_driver']['read']) >= self.max_save:
+                    DISK_DATA[disk_name]['rq_driver']['read'].pop()
+                if len(DISK_DATA[disk_name]['rq_driver']['write']) >= self.max_save:
+                    DISK_DATA[disk_name]['rq_driver']['write'].pop()
+                DISK_DATA[disk_name]['rq_driver']['read'].insert(0, read_data)
+                DISK_DATA[disk_name]['rq_driver']['write'].insert(0, write_data)
+
     def main_loop(self):
         global IO_GLOBAL_DATA
         global IO_DUMP_DATA
@@ -512,6 +564,7 @@ class CollectIo():
                         IO_GLOBAL_DATA[disk_name][stage][category] = []
                         IO_DUMP_DATA[disk_name][stage][category] = []
                     self.update_io_threshold(disk_name, stage_list)
+                self.init_disk_collect(disk_name)
 
             while True:
                 start_time = time.time()
@@ -524,6 +577,7 @@ class CollectIo():
                     if self.get_blk_io_hierarchy(disk_name, stage_list) < 0:
                         continue
                     self.append_period_lat(disk_name, stage_list)
+                    self.append_disk_data(disk_name)
 
                 elapsed_time = time.time() - start_time
                 sleep_time = self.period_time - elapsed_time

@@ -53,7 +53,8 @@ class ClientProtocol():
     IS_IOCOLLECT_VALID = 0
     GET_IO_DATA = 1
     GET_IODUMP_DATA = 2
-    PRO_END = 3
+    GET_DISK_DATA = 3
+    PRO_END = 4
 
 class ResultMessage():
     RESULT_SUCCEED = 0
@@ -297,6 +298,14 @@ def get_io_data(period, disk_list, stage, iotype):
 
 def get_iodump_data(period, disk_list, stage, iotype):
     result = inter_get_io_common(period, disk_list, stage, iotype, ClientProtocol.GET_IODUMP_DATA)
+    error_code = result['ret']
+    if error_code != ResultMessage.RESULT_SUCCEED:
+        result['message'] = Result_Messages[error_code]
+    return result
+
+
+def get_disk_data(period, disk_list, stage, iotype):
+    result = inter_get_io_common(period, disk_list, stage, iotype, ClientProtocol.GET_DISK_DATA)
     error_code = result['ret']
     if error_code != ResultMessage.RESULT_SUCCEED:
         result['message'] = Result_Messages[error_code]

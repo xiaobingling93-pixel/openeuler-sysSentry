@@ -16,12 +16,13 @@ from sentryCollector.collect_plugin import (
     Result_Messages,
     get_io_data,
     get_iodump_data,
+    get_disk_data,
     is_iocollect_valid,
     get_disk_type
 )
 
 
-from .io_data import IOStageData, IOData, IOStageDumpData, IODumpData
+from .io_data import IOStageData, IOData, IOStageDumpData, IODumpData, IOStageDiskData, IODiskData
 
 COLLECT_STAGES = [
     "throtl",
@@ -169,4 +170,47 @@ def get_iodump_data_from_collect_plug(period, disk_list):
             ret[disk] = disk_ret
         return ret
     logging.warning(f'get iodump data failed with message: {data_raw["message"]}')
+    return None
+
+
+def _get_raw_disk_data(period, disk_list):
+    return get_disk_data(
+        period,
+        disk_list,
+        COLLECT_STAGES,
+        ["read", "write"],
+    )
+
+
+def _get_disk_stage_data(data):
+    io_stage_data = IOStageDiskData()
+    for data_type in ("read", "write"):
+        if data_type in data:
+            getattr(io_stage_data, data_type).disk_data = data[data_type]
+    return io_stage_data
+
+
+def get_disk_data_from_collect_plug(period, disk_list):
+    data_raw = _get_raw_disk_data(period, disk_list)
+    if data_raw["ret"] == 0:
+        ret = {}
+        try:
+            data = json.loads(data_raw["message"])
+        except json.decoder.JSONDecodeError as e:
+            logging.warning(f"get disk data failed, {e}")
+            return None
+
+        for disk in data:
+            disk_data = data[disk]
+            disk_ret = IODiskData()
+            for k, v in disk_data.items():
+                try:
+                    getattr(disk_ret, k)
+                    setattr(disk_ret, k, _get_disk_stage_data(v))
+                except AttributeError:
+                    logging.debug(f"no attr {k}")
+                    continue
+            ret[disk] = disk_ret
+        return ret
+    logging.warning(f'get disk data failed with message: {data_raw["message"]}')
     return None

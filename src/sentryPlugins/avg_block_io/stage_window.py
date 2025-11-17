@@ -60,7 +60,7 @@ class IopsWindow(AbnormalWindowBase):
         return False
 
 
-class IodumpMsgWindow:
+class IoArrayDataWindow:
     def __init__(self, window_size=10):
         self.window_size = window_size
         self.window_data = [[] for _ in range(window_size)]

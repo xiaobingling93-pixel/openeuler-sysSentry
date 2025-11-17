@@ -15,7 +15,7 @@ from dataclasses import asdict
 
 from .threshold import ThresholdType
 from .sliding_window import SlidingWindowType
-from .io_data import MetricName, IOData, IODumpData
+from .io_data import MetricName, IOData
 
 
 def get_threshold_type_enum(algorithm_type: str):
@@ -49,11 +49,11 @@ def get_metric_value_from_io_data_dict_by_metric_name(
         return None
 
 
-def get_metric_value_from_iodump_data_dict(io_dump_data_dict: dict, metric_name: MetricName):
+def get_metric_value_from_gen_data_dict(io_gen_data_dict: dict, metric_name: MetricName):
     try:
-        io_dump_data: IODumpData = io_dump_data_dict[metric_name.disk_name]
-        io_dump_stage_data = asdict(io_dump_data)[metric_name.stage_name]
-        base_data = io_dump_stage_data[metric_name.io_access_type_name]
+        io_gen_data = io_gen_data_dict[metric_name.disk_name]
+        io_gen_stage_data = asdict(io_gen_data)[metric_name.stage_name]
+        base_data = io_gen_stage_data[metric_name.io_access_type_name]
         metric_value = base_data[metric_name.metric_name]
         return metric_value
     except KeyError:

@@ -14,9 +14,10 @@ import configparser
 import time
 
 from .config import read_config_log, read_config_common, read_config_algorithm, read_config_latency, read_config_iodump, read_config_stage
-from .stage_window import IoWindow, IoDumpWindow,IopsWindow,IodumpMsgWindow
-from .module_conn import avg_is_iocollect_valid, avg_get_io_data, avg_get_iodump_data, report_alarm_fail, process_report_data, sig_handler, get_disk_type_by_name, check_disk_list_validation
-from .utils import update_avg_and_check_abnormal, update_avg_iodump_data
+from .stage_window import IoWindow, IoDumpWindow, IopsWindow, IoArrayDataWindow
+from .module_conn import avg_is_iocollect_valid, avg_get_io_data, avg_get_iodump_data, avg_get_disk_data, \
+    report_alarm_fail, process_report_data, sig_handler, get_disk_type_by_name, check_disk_list_validation
+from .utils import update_avg_and_check_abnormal, update_avg_array_data
 from .extra_logger import init_extra_logger
 
 CONFIG_FILE = "/etc/sysSentry/plugins/avg_block_io.ini"
@@ -69,8 +70,11 @@ def init_io_win(io_dic, config, common_param):
                 io_data[disk_name][stage_name][rw]["iops"] = IopsWindow(window_size=io_dic["win_size"])
                 logging.debug("Successfully create {}-{}-{}-iops window".format(disk_name, stage_name, rw))
 
-                io_data[disk_name][stage_name][rw]["iodump_data"] = IodumpMsgWindow(window_size=io_dic["win_size"])
+                io_data[disk_name][stage_name][rw]["iodump_data"] = IoArrayDataWindow(window_size=io_dic["win_size"])
                 logging.debug("Successfully create {}-{}-{}-iodump_data window".format(disk_name, stage_name, rw))
+
+                io_data[disk_name][stage_name][rw]["disk_data"] = IoArrayDataWindow(window_size=io_dic["win_size"])
+                logging.debug("Successfully create {}-{}-{}-disk_data window".format(disk_name, stage_name, rw))
     return io_data, io_avg_value
 
 
@@ -138,7 +142,10 @@ def main_loop(io_dic, io_data, io_avg_value):
             continue
 
         # 获取iodump的详细信息
-        is_success, iodump_data = avg_get_iodump_data(io_dic)
+        is_success_iodump, iodump_data = avg_get_iodump_data(io_dic)
+
+        # 获取磁盘的时延数据
+        is_success_disk, disk_data = avg_get_disk_data(io_dic)
 
         # 处理周期数据
         reach_size = False
@@ -148,7 +155,8 @@ def main_loop(io_dic, io_data, io_avg_value):
                     if disk_name in curr_period_data and stage_name in curr_period_data[disk_name] and rw in curr_period_data[disk_name][stage_name]:
                         io_key = (disk_name, stage_name, rw)
                         reach_size = update_avg_and_check_abnormal(curr_period_data, io_key, win_size, io_avg_value, io_data)
-                        update_avg_iodump_data(iodump_data, is_success, io_key, io_data)
+                        update_avg_array_data(iodump_data, is_success_iodump, io_key, io_data, "iodump_data")
+                        update_avg_array_data(disk_data, is_success_disk, io_key, io_data, "disk_data")
 
         # win_size不满时不进行告警判断
         if not reach_size:

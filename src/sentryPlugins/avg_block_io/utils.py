@@ -42,6 +42,7 @@ def get_win_data(disk_name, rw, io_data):
     iodump = ''
     iops = ''
     iodump_data = ''
+    disk_data = ''
     for stage_name in io_data[disk_name]:
         if 'latency' in io_data[disk_name][stage_name][rw]:
             latency_list = io_data[disk_name][stage_name][rw]['latency'].window_data_to_string()
@@ -55,9 +56,15 @@ def get_win_data(disk_name, rw, io_data):
         if 'iodump_data' in io_data[disk_name][stage_name][rw]:
             iodump_data_list = io_data[disk_name][stage_name][rw]['iodump_data'].window_data_to_string()
             iodump_data += f'"{stage_name}": {iodump_data_list}, '
+        if 'disk_data' in io_data[disk_name][stage_name][rw]:
+            disk_data_list = io_data[disk_name][stage_name][rw]['disk_data'].window_data_to_string()
+            disk_data += f'"{stage_name}": {disk_data_list}, '
     if iodump_data:
         iodump_data = '{' + iodump_data[:-2] + '}'
-    return {"latency": latency[:-2], "iodump": iodump[:-2], "iops": iops[:-2], "iodump_data": iodump_data}
+    if disk_name:
+        disk_data = '{' + disk_data[:-2] + '}'
+    return {"latency": latency[:-2], "iodump": iodump[:-2], "iops": iops[:-2], \
+            "iodump_data": iodump_data, "disk_data": disk_data}
 
 
 def is_abnormal(io_key, io_data):
@@ -154,13 +161,13 @@ def update_avg_and_check_abnormal(data, io_key, win_size, io_avg_value, io_data)
     return True
 
 
-def update_avg_iodump_data(iodump_data, is_success, io_key, io_data):
-    """update iodump data to io_data"""
+def update_avg_array_data(array_data, is_success, io_key, io_data, data_type):
+    """update array data to io_data"""
     all_wins = get_nested_value(io_data, io_key)
-    if all_wins and "iodump_data" in all_wins:
+    if all_wins and data_type in all_wins:
         if not is_success:
-            io_data[io_key[0]][io_key[1]][io_key[2]]["iodump_data"].append_new_data([])
+            io_data[io_key[0]][io_key[1]][io_key[2]][data_type].append_new_data([])
         else:
-            period_value = get_nested_value(iodump_data, io_key)
-            io_data[io_key[0]][io_key[1]][io_key[2]]["iodump_data"].append_new_data(period_value)
+            period_value = get_nested_value(array_data, io_key)
+            io_data[io_key[0]][io_key[1]][io_key[2]][data_type].append_new_data(period_value)
 
