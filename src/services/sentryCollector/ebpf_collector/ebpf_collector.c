@@ -240,7 +240,12 @@ char *read_config_value(const char *file, const char *section, const char *key) 
     char *value = NULL;
 
     while (fgets(line, sizeof(line), fp) != NULL) {
-        line[strcspn(line, "\n")] = 0;
+        size_t newline_char_idx = strcspn(line, "\n");
+        if (newline_char_idx == MAX_LINE_LENGTH) {
+            line[MAX_LINE_LENGTH - 1] = '\0';
+        } else {
+            line[newline_char_idx] = '\0';
+        }
 
         if (line[0] == '\0' || line[0] == ';' || line[0] == '#') {
             continue;
