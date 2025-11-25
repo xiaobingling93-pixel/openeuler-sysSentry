@@ -193,6 +193,7 @@ static int read_variable_attribute(char *name, char *guid, uint32_t *attribute) 
     readsize = read(fd, attribute, sizeof(uint32_t));
     if (readsize != sizeof(uint32_t)) {
         log(LOG_ERROR, "read attribute of %s failed\n", filename);
+        close(fd);
         return -1;
     }
 
