@@ -12,6 +12,15 @@
 # Author: Luckky
 # Create: 2025-02-18
 
+ARCH := $(shell uname -m)
+
+ifneq ($(ARCH), aarch64)
+UNSUPPORTED_TARGETS := all install clean distclean uninstall
+$(UNSUPPORTED_TARGETS):
+	@echo "sentry_msg_monitor only supports aarch64 architecture (current: $(ARCH))"
+	@exit 0
+.DEFAULT_GOAL := all
+else
 all: sentry_msg_monitor
 
 sentry_msg_monitor:
@@ -19,5 +28,6 @@ sentry_msg_monitor:
 
 clean:
 	rm -f sentry_msg_monitor
+endif
 
 .PHONY: all clean

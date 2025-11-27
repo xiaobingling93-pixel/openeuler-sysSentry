@@ -27,6 +27,8 @@ PYTHON_VERSION := $(shell $(PYBIN) --version 2>&1 | awk '{print $$2}' | cut -d '
 PKGVER := syssentry-$(VERSION)-py$(PYTHON_VERSION)
 PKGVEREGG := syssentry-$(VERSION)-py$(PYTHON_VERSION).egg-info
 
+ARCH := $(shell uname -m)
+
 all: lib ebpf hbm_online_repair sentry_msg_monitor bmc_block_io soc_ring_sentry
 
 lib:libxalarm log
@@ -147,10 +149,12 @@ isentry:
 	install -m 600 $(CURCONFIGDIR)/env/soc_ring_sentry.env $(ETCDIR)/sysconfig/
 	install -m 600 $(CURCONFIGDIR)/tasks/soc_ring_sentry.mod $(ETCDIR)/sysSentry/tasks/
 
+ifeq ($(ARCH), aarch64)
 	# sentry_msg_monitor
 	install -m 550 $(CURSRCDIR)/sentryPlugins/sentry_msg_monitor/sentry_msg_monitor $(BINDIR)
 	install -m 600 $(CURCONFIGDIR)/env/sentry_msg_monitor.env $(ETCDIR)/sysconfig/
 	install -m 600 $(CURCONFIGDIR)/tasks/sentry_msg_monitor.mod $(ETCDIR)/sysSentry/tasks/
+endif
 
 	# bmc_block_io
 	install -m 550 $(CURSRCDIR)/sentryPlugins/bmc_block_io/output/bmc_block_io $(BINDIR)
