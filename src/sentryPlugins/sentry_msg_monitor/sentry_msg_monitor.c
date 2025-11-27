@@ -30,11 +30,12 @@
 #include "log_utils.h"
 #include "smh_common_type.h"
 #include "ub_fault_lib.h"
+#include "bmc_log_lib.h"
 
 #define TOOL_NAME "sentry_msg_monitor"
 #define SMH_DEV_PATH "/dev/sentry_msg_helper"
 #define PID_FILE_PATH "/var/run/"TOOL_NAME".pid"
-#define ID_LIST_LENGTH 4  //reboot oom panic kernel_reboot
+#define ID_LIST_LENGTH 4  // reboot oom panic kernel_reboot
 #define MSG_STR_MAX_LEN 1024
 #define DEFAULT_LOG_LEVEL LOG_INFO
 #define MAX_RETRY_NUM 3
@@ -423,7 +424,6 @@ static void* sender_thread(void* arg)
             logging_warn("Send msg to xalarmd failed: Get unknown type msg, skip it\n");
             continue;
         }
-
         retry_num = 0;
         for (int i = 0; i < MAX_RETRY_NUM; i++) {
             ret = xalarm_report_event(alarm_type, str);
@@ -550,6 +550,7 @@ re_register:
             logging_warn("Convert str failed: Bad format '%s', skip it\n", al_msg->pucParas);
             continue;
         }
+
         retry_num = 0;
         for (int i = 0; i < MAX_RETRY_NUM; i++) {
             errno = 0;
@@ -567,11 +568,17 @@ re_register:
                 sleep(RETRY_PERIOD);
             } else if (ret < 0) {
                 logging_error("Ack to kernel failed: ioctl return %d\n", errno);
+                if (al_msg->usAlarmId == ALARM_REBOOT_ACK_EVENT) {
+                    report_result_to_bmc(smh_msg.res, ret);
+                }
                 goto un_register;
             }
         }
         if (errno == EFAULT) {
             logging_warn("Ack to kernel failed after %d retries: Copy from user failed, skip it\n", retry_num);
+        }
+        if (al_msg->usAlarmId == ALARM_REBOOT_ACK_EVENT) {
+            report_result_to_bmc(smh_msg.res, ret);
         }
     }
 
