@@ -61,8 +61,8 @@ def write_proc_file(proc_dir, proc_name, proc_value):
     finally:
         return exit_code
 
-def set_sentry_reporter_proc(proc_value):
-    return write_proc_file("sentry_reporter", "ub_mem_fault_with_kill", proc_value)
+def set_sentry_reporter_proc(proc_name, proc_value):
+    return write_proc_file("sentry_reporter", proc_name, proc_value)
 
 def set_remote_reporter_proc(proc_name, proc_value):
     return write_proc_file("sentry_remote_reporter", proc_name, proc_value)
@@ -244,7 +244,10 @@ if __name__ == '__main__':
             {"name": "server_cna", "type": str, "choices": None, "required" : True, "help": "server cna array"},
         ],
         "sentry_reporter" : [
-            {"name" : "ub_mem_fault_with_kill", "type" : "str", "choices":  ["on", "off"], "required" : False, "help" : "Enable/Disable sending SIGBUS signal with UB mem event"},
+            {"name" : "ub_mem_fault_with_kill", "type" : str, "choices":  ["on", "off"], "required" : False, "help" : "Enable/Disable sending SIGBUS signal with UB mem event"},
+            {"name" : "ub_mem_fault", "type" : str, "choices": ["on", "off"], "required" : False, "help": "Enable/Disable UB mem event"},
+            {"name" : "power_off", "type": str, "choices": ["on", "off"], "required" : False, "help": "Enable/Disable power off event"},
+            {"name" : "oom", "type" : str, "choices": ["on", "off"], "required" : False, "help": "Enable/Disable oom event"},
         ],
     }
     parser_set = subparsers.add_parser('set', help='set plugins params')
@@ -326,7 +329,14 @@ if __name__ == '__main__':
         elif client_args.set_task == "sentry_uvb_comm":
             ret_code += set_uvb_proc(client_args.server_cna)
         elif client_args.set_task == "sentry_reporter":
-            ret_code += set_sentry_reporter_proc(client_args.ub_mem_fault_with_kill)
+            if client_args.ub_mem_fault_with_kill != None:
+                ret_code += set_sentry_reporter_proc("ub_mem_fault_with_kill", client_args.ub_mem_fault_with_kill)
+            if client_args.ub_mem_fault != None:
+                ret_code += set_sentry_reporter_proc("ub_mem_fault", client_args.ub_mem_fault);
+            if client_args.power_off != None:
+                ret_code += set_sentry_reporter_proc("power_off", client_args.power_off);
+            if client_args.oom != None:
+                ret_code += set_sentry_reporter_proc("oom", client_args.oom);
         sys.exit(ret_code)
     else:
         parser.print_help()
