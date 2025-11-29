@@ -32,7 +32,6 @@ ARCH := $(shell uname -m)
 all: lib ebpf hbm_online_repair sentry_msg_monitor bmc_block_io soc_ring_sentry
 
 lib:libxalarm log
-	yum install -y numactl-libs numactl-devel
 
 libxalarm:
 	cd $(CURLIBDIR) && cmake . -DXD_INSTALL_BINDIR=$(LIBINSTALLDIR) -B build
