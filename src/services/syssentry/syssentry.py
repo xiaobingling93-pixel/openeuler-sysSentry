@@ -668,8 +668,8 @@ def main():
         client_id = alarm_register()
         main_loop()
 
-    except Exception:
-        pass
+    except Exception as e:
+        logging.error(traceback.format_exc())
     finally:
         if client_id != -1:
             xalarm_unregister(client_id)

@@ -17,9 +17,10 @@ import subprocess
 import logging
 import time
 import os
+import shlex
 
 from .result import ResultLevel, RESULT_LEVEL_ERR_MSG_DICT
-from .utils import get_current_time_string
+from .utils import get_current_time_string, run_cmd
 from .mod_status import set_runtime_status
 from .mod_status import RUNNING_STATUS, EXITED_STATUS, NONZERO_EXITED_STATUS, FAILED_STATUS, WAITING_STATUS
 
@@ -44,7 +45,7 @@ TASKS_STORAGE_PATH = "/etc/sysSentry/tasks"
 
 class InspectTask:
     """oneshot task class"""
-    def __init__(self, name: str, task_type: str, start_task: str, stop_task: str):
+    def __init__(self, name: str, task_type: str, pre_task: str, post_task: str, start_task: str, stop_task: str):
         self.name = name
         self.type = task_type
         self.status = "ERROR"
@@ -52,6 +53,8 @@ class InspectTask:
         self.runtime_status = EXITED_STATUS
         self.pid = -1
         # task attribute
+        self.task_pre = pre_task
+        self.task_post = post_task
         self.task_start = start_task
         self.task_stop = stop_task
         # task heartbeat attribute
@@ -83,6 +86,45 @@ class InspectTask:
         # alarm id
         self.alarm_id = -1
         self.alarm_clear_time = DEFAULT_ALARM_CLEAR_TIME
+        # pre task flag
+        self.pre_done = False
+
+    def pre(self):
+        """
+        task pre function, it should be executed before start()
+        """
+        if self.task_pre is None:
+            return 0
+        pre_cmd_list = self.task_pre.split(";")
+        for pre_cmd_i in pre_cmd_list:
+            result = run_cmd(pre_cmd_i)
+            if result.stderr:
+                logging.error("task %s pre cmd (%s) execute failed, error msg is %s",
+                              self.name, pre_cmd_i, result.stderr)
+                self.runtime_status = FAILED_STATUS
+                return -1
+        self.pre_done = True
+        logging.info(f"task {self.name} pre cmd success")
+        return 0
+
+    def post(self):
+        """
+        task post function, it should be executed after stop() or after pre() failed
+        """
+        if self.task_post is None:
+            return 0
+        self.pre_done = False
+        post_success = True
+        post_cmd_list = self.task_post.split(";")
+        for post_cmd_i in post_cmd_list:
+            result = run_cmd(post_cmd_i)
+            if result.stderr:
+                post_success = False
+                logging.warning("task %s post cmd (%s) execute failed, error msg is %s",
+                                self.name, post_cmd_i, result.stderr)
+        if post_success:
+            logging.info(f"task {self.name} post cmd success")
+        return 0
 
     def start(self):
         """
@@ -94,6 +136,13 @@ class InspectTask:
         self.result_info["end_time"] = ""
         self.result_info["error_msg"] = ""
         self.result_info["details"] = {}
+
+        if not self.pre_done:
+            pre_res = self.pre()
+            if pre_res != 0:
+                self.post()
+                return False, "task pre cmd failed"
+
         if not self.period_enabled:
             self.period_enabled = True
         if self.runtime_status in (EXITED_STATUS, FAILED_STATUS, NONZERO_EXITED_STATUS):
@@ -105,7 +154,7 @@ class InspectTask:
             if self.env_file:
                 self.load_env_file()
 
-            cmd_list = self.task_start.split()
+            cmd_list = shlex.split(self.task_start)
             try:
                 logfile = open(self.log_file, 'a')
                 os.chmod(self.log_file, 0o600)
@@ -138,7 +187,7 @@ class InspectTask:
         """stop"""
         self.period_enabled = False
         if self.runtime_status == RUNNING_STATUS:
-            cmd_list = self.task_stop.split()
+            cmd_list = shlex.split(self.task_stop)
             if cmd_list[-1] == "$pid":
                 cmd_list[-1] = str(self.pid)
             try:
@@ -146,6 +195,7 @@ class InspectTask:
             except OSError:
                 logging.error("task %s stop Popen failed")
             logging.debug("stop task %s", self.name)
+            self.post()
 
     def get_status(self):
         """get status"""

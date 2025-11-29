@@ -31,6 +31,8 @@ CONF_TASK = 'common'
 CONF_NAME = 'name'
 CONF_TYPE = 'type'
 CONF_ENABLED = 'enabled'
+CONF_TASK_PRE = "task_pre"
+CONF_TASK_POST = "task_post"
 CONF_TASK_START = 'task_start'
 CONF_TASK_STOP = 'task_stop'
 CONF_TASK_RELOAD = 'task_reload'
@@ -176,6 +178,12 @@ def parse_mod_conf(mod_name, mod_conf):
     is_enabled = (mod_conf.get(CONF_TASK, CONF_ENABLED) == 'yes')
 
     task_type = mod_conf.get(CONF_TASK, CONF_TYPE)
+    task_pre_cmd = None
+    task_post_cmd = None
+    if mod_conf.has_option(CONF_TASK, CONF_TASK_PRE):
+        task_pre_cmd = mod_conf.get(CONF_TASK, CONF_TASK_PRE)
+    if mod_conf.has_option(CONF_TASK, CONF_TASK_POST):
+        task_post_cmd = mod_conf.get(CONF_TASK, CONF_TASK_POST)
     task_start_cmd = mod_conf.get(CONF_TASK, CONF_TASK_START)
     task_stop_cmd = mod_conf.get(CONF_TASK, CONF_TASK_STOP)
     heartbeat_interval = -1
@@ -188,11 +196,12 @@ def parse_mod_conf(mod_name, mod_conf):
     if task_type == PERIOD_CONF:
         logging.debug("task is a period task")
         cron_delay = parse_period_delay(mod_conf)
-        task = PeriodTask(mod_name, task_type.upper(), task_start_cmd, task_stop_cmd, cron_delay)
+        task = PeriodTask(mod_name, task_type.upper(), task_pre_cmd, task_post_cmd,
+                          task_start_cmd, task_stop_cmd, cron_delay)
         task.task_stop = task_stop_cmd
     else:
         task_type = ONESHOT_TYPE
-        task = InspectTask(mod_name, task_type, task_start_cmd, task_stop_cmd)
+        task = InspectTask(mod_name, task_type, task_pre_cmd, task_post_cmd, task_start_cmd, task_stop_cmd)
     task.heartbeat_interval = heartbeat_interval
     task.load_enabled = is_enabled
 

@@ -14,18 +14,19 @@ some common function
 """
 import logging
 import subprocess
+import shlex
 from datetime import datetime, timezone, timedelta
 
 
 def run_cmd(cmd):
     """run cmd use subprocess.run"""
-    result = subprocess.run(cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+    result = subprocess.run(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
     return result
 
 
 def run_popen(cmd):
     """run cmd use subprocess.Popen"""
-    pipe = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    pipe = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     return pipe
 
 
