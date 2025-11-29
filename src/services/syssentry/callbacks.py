@@ -17,7 +17,8 @@ import logging
 
 
 from .task_map import TasksMap, ONESHOT_TYPE, PERIOD_TYPE
-from .mod_status import EXITED_STATUS, RUNNING_STATUS, WAITING_STATUS, set_runtime_status
+from .mod_status import EXITED_STATUS, NONZERO_EXITED_STATUS, FAILED_STATUS, RUNNING_STATUS, WAITING_STATUS
+from .mod_status import set_runtime_status
 from .alarm import get_alarm_result
 
 
@@ -69,7 +70,7 @@ def task_stop(mod_name):
         if not task.load_enabled:
             return "failed", "mod is not enabled"
         logging.info("%s stop", mod_name)
-        if task.runtime_status == EXITED_STATUS:
+        if task.runtime_status in [NONZERO_EXITED_STATUS, EXITED_STATUS, FAILED_STATUS]:
             return "success", "task already stopped"
         if task.runtime_status == WAITING_STATUS:
             set_runtime_status(task.name, EXITED_STATUS)

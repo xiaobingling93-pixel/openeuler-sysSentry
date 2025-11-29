@@ -23,6 +23,11 @@
 #define ALARM_REBOOT_ACK_EVENT 1004
 #define ALARM_OOM_EVENT 1005
 #define ALARM_OOM_ACK_EVENT 1006
+#define ALARM_PANIC_EVENT 1007
+#define ALARM_PANIC_ACK_EVENT 1008
+#define ALARM_KERNEL_REBOOT_EVENT 1009
+#define ALARM_KERNEL_REBOOT_ACK_EVENT 1010
+#define ALARM_UBUS_MEM_EVENT 1013
 
 #define MINOR_ALM 1
 #define MAJOR_ALM 2
@@ -130,8 +135,8 @@ enum RESULT_LEVEL {
 #define RESULT_INFO_MAX_LEN 4096
 #define RESULT_INFO_LOG_MGS_MAX_LEN 255
 
-#define RETURE_CODE_FAIL (-1)
-#define RETURE_CODE_SUCCESS 0
+#define RETURN_CODE_FAIL (-1)
+#define RETURN_CODE_SUCCESS 0
 
 extern int report_result(const char *task_name,
                          enum RESULT_LEVEL result_level,

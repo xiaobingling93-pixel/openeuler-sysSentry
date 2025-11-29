@@ -414,6 +414,7 @@ static int init_event_format(struct ras_events *ras, struct tep_handle *pevent,
         free(page);
         return EINVAL;
     }
+    free(page);
     return 0;
 }
 

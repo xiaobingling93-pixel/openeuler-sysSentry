@@ -30,6 +30,7 @@ from .global_values import SENTRY_RUN_DIR, CTL_SOCKET_PATH, SENTRY_RUN_DIR_PERM
 from .cron_process import period_tasks_handle
 from .callbacks import mod_list_show, task_start, task_get_status, task_stop, task_get_result, task_get_alarm
 from .mod_status import get_task_by_pid, set_runtime_status
+from .mod_status import RUNNING_STATUS, EXITED_STATUS, NONZERO_EXITED_STATUS, FAILED_STATUS, WAITING_STATUS
 from .load_mods import load_tasks, reload_single_mod
 from .heartbeat import (heartbeat_timeout_chk, heartbeat_fd_create,
     heartbeat_recv, THB_SOCKET_PATH)
@@ -39,8 +40,6 @@ from .utils import get_current_time_string
 from .alarm import alarm_register
 
 from xalarm.register_xalarm import xalarm_unregister
-
-clientId = -1
 
 CPU_EXIST = True
 try:
@@ -55,7 +54,7 @@ except ImportError:
     BMC_EXIST = False
 
 
-INSPECTOR = None
+exit_flag = False
 
 CTL_MSG_HEAD_LEN = 6
 CTL_MSG_MAGIC_LEN = 3
@@ -504,7 +503,8 @@ def main_loop():
                 continue
             task.onstart_handle()
 
-    while True:
+    global exit_flag
+    while not exit_flag:
         try:
             events_list = epoll_fd.poll(SERVER_EPOLL_TIMEOUT)
             for event_fd, _ in events_list:
@@ -548,10 +548,14 @@ def release_pidfile():
 def remove_sock_file():
     """remove sock file
     """
+    for socket_path in (THB_SOCKET_PATH, CTL_SOCKET_PATH, CPU_ALARM_SOCKET_PATH, RESULT_SOCKET_PATH, BMC_SOCKET_PATH):
+        try:
+            os.unlink(socket_path)
+        except FileNotFoundError:
+            pass
     try:
-        os.unlink(THB_SOCKET_PATH)
-        os.unlink(CTL_SOCKET_PATH)
-    except FileNotFoundError:
+        os.rmdir(SENTRY_RUN_DIR)
+    except Exception:
         pass
 
 
@@ -560,25 +564,30 @@ def sigchld_handler(signum, _f):
     """
     while True:
         try:
-            child_pid, child_exit_code = os.waitpid(-1, os.WNOHANG)
+            child_pid, child_status = os.waitpid(-1, os.WNOHANG)
             logging.debug("sigchld pid :%d", child_pid)
             task = get_task_by_pid(child_pid)
             if not task:
                 logging.debug("pid %d cannot find task, ignore", child_pid)
                 break
             logging.debug("task name %s", task.name)
-            if os.WIFEXITED(child_exit_code):
+            if os.WIFEXITED(child_status):
                 # exit normally with exit() syscall
+                logging.info("task %s exit with status %d", task.name, os.WEXITSTATUS(child_status))
                 if task.type == "PERIOD" and task.period_enabled:
-                    set_runtime_status(task.name, "WAITING")
+                    set_runtime_status(task.name, WAITING_STATUS)
                 else:
-                    set_runtime_status(task.name, "EXITED")
+                    if os.WEXITSTATUS(child_status):
+                        set_runtime_status(task.name, NONZERO_EXITED_STATUS)
+                    else:
+                        set_runtime_status(task.name, EXITED_STATUS)
             else:
                 # exit abnormally
-                if not task.period_enabled:
-                    set_runtime_status(task.name, "EXITED")
+                logging.info("task %s terminated", task.name)
+                if task.type == "PERIOD" and task.period_enabled:
+                    set_runtime_status(task.name, WAITING_STATUS)
                 else:
-                    set_runtime_status(task.name, "FAILED")
+                    set_runtime_status(task.name, FAILED_STATUS)
             task.result_info["end_time"] = get_current_time_string()
         except:
             break
@@ -590,21 +599,10 @@ def sig_handler(signum, _f):
     :param _f:
     :return:
     """
+    global exit_flag
     if signum not in (signal.SIGINT, signal.SIGTERM):
         return
-    tasks_dict = TasksMap.tasks_dict
-    for task_type in tasks_dict:
-        for task_name in tasks_dict[task_type]:
-            task = tasks_dict[task_type][task_name]
-            task.stop()
-            if task.pid > 0:
-                try:
-                    os.kill(task.pid, signal.SIGTERM)
-                except os.error as os_error:
-                    logging.debug("sigterm kill error, %s", str(os_error))
-    release_pidfile()
-    remove_sock_file()
-    sys.exit(0)
+    exit_flag = True
 
 
 def chk_and_set_pidfile():
@@ -625,6 +623,19 @@ def chk_and_set_pidfile():
     return False
 
 
+def clean_child():
+    tasks_dict = TasksMap.tasks_dict
+    for task_type in tasks_dict:
+        for task_name in tasks_dict[task_type]:
+            task = tasks_dict[task_type][task_name]
+            task.stop()
+            if task.pid > 0:
+                try:
+                    os.kill(task.pid, signal.SIGTERM)
+                except os.error as os_error:
+                    logging.debug("sigterm kill error, %s", str(os_error))
+
+
 def main():
     """main
     """
@@ -642,6 +653,7 @@ def main():
         logging.error("get pid file lock failed, exist")
         sys.exit(17)
 
+    client_id = -1
     try:
         signal.signal(signal.SIGINT, sig_handler)
         signal.signal(signal.SIGTERM, sig_handler)
@@ -653,12 +665,14 @@ def main():
         _ = SentryConfig.init_param()
         TasksMap.init_task_map()
         load_tasks()
-        clientId = alarm_register()
+        client_id = alarm_register()
         main_loop()
 
     except Exception:
-        logging.error('%s', traceback.format_exc())
+        pass
     finally:
-        if clientId != -1:
-            xalarm_unregister(clientId)
+        if client_id != -1:
+            xalarm_unregister(client_id)
+        clean_child()
         release_pidfile()
+        remove_sock_file()

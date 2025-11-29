@@ -1,13 +1,9 @@
 #!/bin/sh
 
-TMPF=`mktemp /tmp/logrotate-sysSentry.XXXXXXXXX`
-
-/usr/sbin/logrotate /etc/sysSentry/logrotate-sysSentry.conf -v --log=$TMPF -s /var/lib/logrotate-syssentry/logrotate.status
+/usr/sbin/logrotate /etc/sysSentry/logrotate-sysSentry.conf -v -s /var/lib/logrotate-syssentry/logrotate.status
 EXITVALUE=$?
 if [ $EXITVALUE != 0 ]; then
 	/bin/logger -t logrotate "ALERT exited abnormally with [$EXITVALUE], for details, see /var/log/sysSentry/logrotate.log"
-	/bin/logger -t logrotate -f $TMPF
 fi
-rm -rf $TMPF
 rm -rf /var/lib/logrotate-syssentry/logrotate.status
 exit $EXITVALUE

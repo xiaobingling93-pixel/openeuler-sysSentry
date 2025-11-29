@@ -312,15 +312,13 @@ char *xalarm_getdesc(const struct alarm_info *palarm)
 
 static int init_report_addr(struct sockaddr_un *alarm_addr, char *report_path)
 {
-    int ret;
-
     if (alarm_addr == NULL) {
         fprintf(stderr, "%s: alarm_addr is null\n", __func__);
         return -1;
     }
 
     if (memset(alarm_addr, 0, sizeof(struct sockaddr_un)) == NULL) {
-        fprintf(stderr, "%s: memset  alarm_addr failed, ret: %d\n", __func__, ret);
+        fprintf(stderr, "%s: memset  alarm_addr failed\n", __func__);
         return -1;
     }
     alarm_addr->sun_family = AF_UNIX;
@@ -332,7 +330,7 @@ static int init_report_addr(struct sockaddr_un *alarm_addr, char *report_path)
 int xalarm_Report(unsigned short usAlarmId, unsigned char ucAlarmLevel,
     unsigned char ucAlarmType, char *pucParas)
 {
-    int ret, fd;
+    int ret = 0, fd;
     struct alarm_info info;
     struct sockaddr_un alarm_addr;
 
@@ -349,7 +347,7 @@ int xalarm_Report(unsigned short usAlarmId, unsigned char ucAlarmLevel,
     }
 
     if (memset(&info, 0, sizeof(struct alarm_info)) == NULL) {
-        fprintf(stderr, "%s: memset info failed, ret: %d\n", __func__, ret);
+        fprintf(stderr, "%s: memset info failed\n", __func__);
         return -1;
     }
     info.usAlarmId = usAlarmId;
@@ -363,7 +361,7 @@ int xalarm_Report(unsigned short usAlarmId, unsigned char ucAlarmLevel,
     fd = socket(AF_UNIX, SOCK_DGRAM, 0);
     if (fd < 0) {
         fprintf(stderr, "%s socket create error: %s\n", __func__, strerror(errno));
-        return -1;
+        return -ENODEV;
     }
 
     ret = init_report_addr(&alarm_addr, PATH_REPORT_ALARM);
@@ -520,13 +518,14 @@ int send_data_to_socket(const char *socket_path, const char *message)
     sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (sockfd == -1) {
         fprintf(stderr, "failed to create socket\n");
-        return RETURE_CODE_FAIL;
+        return RETURN_CODE_FAIL;
     }
 
     // set socket address
     if (memset(&addr, 0, sizeof(struct sockaddr_un)) == NULL) {
         fprintf(stderr, "%s: memset info failed.\n", __func__);
-        return RETURE_CODE_FAIL;
+        close(sockfd);
+        return RETURN_CODE_FAIL;
     }
 
     addr.sun_family = AF_UNIX;
@@ -535,18 +534,18 @@ int send_data_to_socket(const char *socket_path, const char *message)
     if (connect(sockfd, (struct sockaddr *)&addr, sizeof(struct sockaddr_un)) == -1) {
         fprintf(stderr, "failed to connect socket %s\n", socket_path);
         close(sockfd);
-        return RETURE_CODE_FAIL;
+        return RETURN_CODE_FAIL;
     }
 
     // write data
     if (write(sockfd, message, strlen(message)) == -1) {
         fprintf(stderr, "failed to send data to socket %s\n", socket_path);
         close(sockfd);
-        return RETURE_CODE_FAIL;
+        return RETURN_CODE_FAIL;
     }
 
     close(sockfd);
-    return RETURE_CODE_SUCCESS;
+    return RETURN_CODE_SUCCESS;
 }
 
 
@@ -600,7 +599,7 @@ static bool is_valid_task_name(const char *task_name)
  */
 int report_result(const char *task_name, enum RESULT_LEVEL result_level, const char *report_data)
 {
-    int ret = RETURE_CODE_FAIL;
+    int ret = RETURN_CODE_FAIL;
     if (result_level < 0 || result_level >= RESULT_LEVEL_NUM) {
         fprintf(stderr, "result_level (%d) is invalid, it must be in [0-5]\n", result_level);
         return ret;
@@ -644,7 +643,7 @@ int report_result(const char *task_name, enum RESULT_LEVEL result_level, const c
         goto free_msg;
     }
 
-    ret = RETURE_CODE_SUCCESS;
+    ret = RETURN_CODE_SUCCESS;
 free_msg:
     free(message);
     message = NULL;
@@ -779,7 +778,8 @@ int xalarm_report_event(unsigned short usAlarmId, char *pucParas)
 
     fd = socket(AF_UNIX, SOCK_DGRAM, 0);
     if (fd < 0) {
-        return -ENOTCONN;
+        fprintf(stderr, "%s socket create error: %s\n", __func__, strerror(errno));
+        return -ENODEV;
     }
 
     ret = init_report_addr(&alarm_addr, PATH_REPORT_ALARM);

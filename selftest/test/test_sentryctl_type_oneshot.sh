@@ -33,7 +33,7 @@ function do_test() {
     sleep 1
 
     sentryctl status test_type_oneshot 2>&1 | tee ${tmp_log} | cat
-    expect_true "grep -E '(status: EXITED)' ${tmp_log}"
+    expect_true "grep -E '(status: FAILED)' ${tmp_log}"
 
     sentryctl start test_type_oneshot
     expect_eq $? 0

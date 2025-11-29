@@ -20,7 +20,8 @@ import os
 
 from .result import ResultLevel, RESULT_LEVEL_ERR_MSG_DICT
 from .utils import get_current_time_string
-from .mod_status import set_runtime_status, RUNNING_STATUS
+from .mod_status import set_runtime_status
+from .mod_status import RUNNING_STATUS, EXITED_STATUS, NONZERO_EXITED_STATUS, FAILED_STATUS, WAITING_STATUS
 
 SENTRY_RUN_DIR = "/var/run/sysSentry"
 CTL_SOCKET_PATH = "/var/run/sysSentry/control.sock"
@@ -48,7 +49,7 @@ class InspectTask:
         self.type = task_type
         self.status = "ERROR"
         # runtime information
-        self.runtime_status = "EXITED"
+        self.runtime_status = EXITED_STATUS
         self.pid = -1
         # task attribute
         self.task_start = start_task
@@ -95,7 +96,7 @@ class InspectTask:
         self.result_info["details"] = {}
         if not self.period_enabled:
             self.period_enabled = True
-        if self.runtime_status in ("EXITED", "FAILED"):
+        if self.runtime_status in (EXITED_STATUS, FAILED_STATUS, NONZERO_EXITED_STATUS):
 
             if self.conflict != 'up':
                 ret = self.check_conflict()
@@ -119,7 +120,7 @@ class InspectTask:
                 logging.error("task %s start Popen error, invalid cmd", cmd_list)
                 self.result_info["result"] = ResultLevel.FAIL.name
                 self.result_info["error_msg"] = RESULT_LEVEL_ERR_MSG_DICT.get(ResultLevel.FAIL.name)
-                self.runtime_status = "FAILED"
+                self.runtime_status = FAILED_STATUS
                 return False, "start command is invalid, popen failed"
             finally:
                 if isinstance(logfile, io.TextIOWrapper) and not logfile.closed:
@@ -127,7 +128,7 @@ class InspectTask:
 
             self.pid = child.pid
             logging.debug("start task %s pid %d", self.name, self.pid)
-            self.runtime_status = "RUNNING"
+            self.runtime_status = RUNNING_STATUS
             if self.heartbeat_interval > 0:
                 self.last_heartbeat = time.perf_counter()
             return True, "start task success"
@@ -136,7 +137,7 @@ class InspectTask:
     def stop(self):
         """stop"""
         self.period_enabled = False
-        if self.runtime_status == "RUNNING":
+        if self.runtime_status == RUNNING_STATUS:
             cmd_list = self.task_stop.split()
             if cmd_list[-1] == "$pid":
                 cmd_list[-1] = str(self.pid)

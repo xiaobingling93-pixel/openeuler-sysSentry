@@ -6,7 +6,7 @@ After=xalarmd.service
 [Service]
 ExecStart=/usr/bin/python3 /usr/bin/syssentry
 ExecStop=/bin/kill $MAINPID
-KillMode=process
+KillMode=mixed
 Restart=on-failure
 RestartSec=10s
 

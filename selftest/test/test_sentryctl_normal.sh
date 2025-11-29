@@ -34,7 +34,7 @@ function do_test() {
     if [ $? -eq 0 ]
     then
         sentryctl status test_normal 2>&1 | tee ${tmp_log}
-        expect_true "grep -E '(status: EXITED)' ${tmp_log}"
+        expect_true "grep -E '(status: FAILED)' ${tmp_log}"
     fi
 }
 

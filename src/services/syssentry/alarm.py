@@ -38,7 +38,6 @@ alarm_list_lock = threading.Lock()
 
 id_filter = []
 id_base = 1001
-clientId = -1
 
 MILLISECONDS_UNIT_SECONDS = 1000
 MAX_NUM_OF_ALARM_ID = 128

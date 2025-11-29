@@ -409,7 +409,7 @@ void CBMCBlockIo::ReportAlarm(const IPMIEvent& event)
     json_object_object_add(jObject, JSON_KEY_DETAILS.c_str(), json_object_new_string("{}}"));
     const char *jData = json_object_to_json_string(jObject);
     int ret = xalarm_Report(m_alarmId, ucAlarmLevel, ucAlarmType, const_cast<char*>(jData));
-    if (ret != RETURE_CODE_SUCCESS) {
+    if (ret != RETURN_CODE_SUCCESS) {
         BMC_LOG_ERROR << "Failed to xalarm_Report, ret: " << ret;
     }
     json_object_put(jObject);
@@ -423,7 +423,7 @@ void CBMCBlockIo::ReportResult(int resultLevel, const std::string& msg)
     json_object_object_add(jObject, JSON_KEY_MSG.c_str(), json_object_new_string(msg.c_str()));
     const char *jData = json_object_to_json_string(jObject);
     int ret = report_result(BMC_TASK_NAME.c_str(), level, const_cast<char*>(jData));
-    if (ret != RETURE_CODE_SUCCESS) {
+    if (ret != RETURN_CODE_SUCCESS) {
         BMC_LOG_ERROR << "Failed to report_result, ret: " << ret;
     }
     json_object_put(jObject);

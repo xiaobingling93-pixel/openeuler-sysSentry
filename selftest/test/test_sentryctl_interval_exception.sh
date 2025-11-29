@@ -40,7 +40,7 @@ function do_test() {
     sleep 1
 
     sentryctl status test_interval_exception 2>&1 | tee ${tmp_log} | cat
-    expect_true "grep -E '(status: EXITED)' ${tmp_log}"
+    expect_true "grep -E '(status: FAILED)' ${tmp_log}"
 
 }
 
