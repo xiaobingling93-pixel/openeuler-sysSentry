@@ -17,6 +17,7 @@ import os
 import time
 import logging
 import subprocess
+import shlex
 
 from .utils import get_current_time_string
 from .result import ResultLevel, RESULT_LEVEL_ERR_MSG_DICT
@@ -28,8 +29,9 @@ from .mod_status import set_runtime_status, WAITING_STATUS, RUNNING_STATUS, \
 
 class PeriodTask(InspectTask):
     """period task class"""
-    def __init__(self, name: str, task_type: str, task_start: str, task_stop: str, interval):
-        super().__init__(name, task_type, task_start, task_stop)
+    def __init__(self, name: str, task_type: str, task_pre: str, task_post: str,
+                 task_start: str, task_stop: str, interval):
+        super().__init__(name, task_type, task_pre, task_post, task_start, task_stop)
         self.interval = int(interval)
         self.last_exec_timestamp = 0
         self.runtime_status = WAITING_STATUS
@@ -37,13 +39,14 @@ class PeriodTask(InspectTask):
 
     def stop(self):
         self.period_enabled = False
-        cmd_list = self.task_stop.split()
+        cmd_list = shlex.split(self.task_stop)
         if cmd_list[-1] == "$pid":
             cmd_list[-1] = str(self.pid)
         try:
             subprocess.Popen(cmd_list, stdout=subprocess.PIPE, close_fds=True)
         except OSError:
             logging.error("task stop Popen failed, invalid cmd")
+        self.post()
         if self.runtime_status != RUNNING_STATUS:
             self.runtime_status = EXITED_STATUS
 
@@ -57,6 +60,13 @@ class PeriodTask(InspectTask):
         self.result_info["end_time"] = ""
         self.result_info["error_msg"] = ""
         self.result_info["details"] = {}
+
+        if not self.pre_done:
+            pre_res = self.pre()
+            if pre_res != 0:
+                self.post()
+                return False, "task pre cmd failed"
+
         if not self.period_enabled:
             self.period_enabled = True
 
@@ -67,7 +77,7 @@ class PeriodTask(InspectTask):
         if self.env_file:
             self.load_env_file()
 
-        cmd_list = self.task_start.split()
+        cmd_list = shlex.split(self.task_start)
         try:
             logfile = open(self.log_file, 'a')
             os.chmod(self.log_file, 0o600)
