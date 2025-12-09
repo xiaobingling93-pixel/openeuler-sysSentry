@@ -676,6 +676,7 @@ int xalarm_register_event(struct alarm_register **register_info, struct alarm_su
     (*register_info)->register_fd = create_unix_socket(PATH_REG_ALARM);
     if ((*register_info)->register_fd == -1) {
         free(*register_info);
+        *register_info = NULL;
         return -ENOTCONN;
     }
 
