@@ -9,8 +9,6 @@ sections:
   - label: 巡检插件
     href: ./plugins.md
     sections:
-      - label: CPU故障巡检插件
-        href: ./cpu_fault_inspection_plugin.md
       - label: AI阈值慢盘检测插件
         href: ./ai_block_io_plugin.md
       - label: 平均阈值慢盘检测插件
