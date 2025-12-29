@@ -71,6 +71,7 @@ dirs:
 	install -d -m 700 $(ETCDIR)/sysSentry/
 	install -d -m 700 $(ETCDIR)/sysSentry/tasks/
 	install -d -m 700 $(ETCDIR)/sysSentry/plugins/
+	install -d -m 700 $(ETCDIR)/sysSentry/task_scripts/
 
 isentry:
 	cd $(CURSRCDIR) && $(PYBIN) setup.py install --prefix=$(PREFIX) -O1 --root=build --record=SENTRY_FILES
@@ -153,6 +154,7 @@ ifeq ($(ARCH), aarch64)
 	install -m 550 $(CURSRCDIR)/sentryPlugins/sentry_msg_monitor/sentry_msg_monitor $(BINDIR)
 	install -m 600 $(CURCONFIGDIR)/env/sentry_msg_monitor.env $(ETCDIR)/sysconfig/
 	install -m 600 $(CURCONFIGDIR)/tasks/sentry_msg_monitor.mod $(ETCDIR)/sysSentry/tasks/
+	install -m 600 $(CURCONFIGDIR)/task_scripts/sentry_msg_monitor.sh $(ETCDIR)/sysSentry/task_scripts/
 endif
 
 	# bmc_block_io
