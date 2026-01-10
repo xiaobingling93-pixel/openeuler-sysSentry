@@ -27,7 +27,8 @@ from .xalarm_transfer import (
     check_filter,
     transmit_alarm,
     wait_for_connection,
-    cleanup_closed_connections
+    cleanup_closed_connections,
+    broadcast_sentry_down
 )
 
 
@@ -53,7 +54,7 @@ def check_permission(path, permission):
 def check_socket_file(path):
     if not os.path.exists(path):
         return False
-    
+
     file_stat = os.stat(path)
     # path is not a socket file
     if not stat.S_ISSOCK(file_stat.st_mode):
@@ -135,6 +136,47 @@ def period_task_to_cleanup_connections():
         cleanup_closed_connections(alarm_sock, alarm_epoll, fd_to_socket, fd_to_socket_lock)
 
 
+def monitor_sentry_service():
+    """
+    Monitor sysSentry service status via systemd D-Bus
+    When sysSentry service becomes inactive or failed, broadcast alarm to all clients
+    """
+    global fd_to_socket
+    global fd_to_socket_lock
+
+    try:
+        import dbus
+        from gi.repository import GLib
+        from dbus.mainloop.glib import DBusGMainLoop
+    except ImportError as e:
+        logging.error("Failed to import dbus or GLib: %s, systemd monitoring disabled", str(e))
+        return
+
+    try:
+        DBusGMainLoop(set_as_default=True)
+        bus = dbus.SystemBus()
+        systemd = bus.get_object('org.freedesktop.systemd1',
+                                '/org/freedesktop/systemd1/unit/sysSentry_2eservice')
+
+        def on_properties_changed(interface, changed, invalidated):
+            if 'ActiveState' in changed:
+                state = changed['ActiveState']
+                logging.info("sysSentry service state changed to: %s", state)
+                if state in ['inactive', 'failed']:
+                    logging.warning("sysSentry service is down, broadcasting alarm to all clients")
+                    broadcast_sentry_down(alarm_sock, fd_to_socket, fd_to_socket_lock)
+
+        systemd.connect_to_signal(dbus_interface='org.freedesktop.DBus.Properties',
+                                  signal_name='PropertiesChanged',
+                                  handler_function=on_properties_changed)
+
+        logging.info("sysSentry service monitoring started")
+        loop = GLib.MainLoop()
+        loop.run()
+    except Exception as e:
+        logging.error("Failed to monitor sysSentry service: %s", str(e))
+
+
 def watch_socket_file_and_dir():
     global conn_thread
     global alarm_epoll
@@ -151,7 +193,7 @@ def watch_socket_file_and_dir():
                 logging.info("socket file %s not found or socket file been replaced, recovering ...", SOCK_FILE)
                 clear_sock_conn(report_sock, report_epoll)
                 clear_sock_file(SOCK_FILE)
-                # if create socket failed, will retry to create because socket file was cleared in last step
+                # if create socket socket, will retry to create because socket file was cleared in last step
                 report_sock, report_epoll = create_sock_conn(SOCK_FILE, socket.SOCK_DGRAM)
             
             if not check_socket_file(USER_RECV_SOCK):
@@ -186,10 +228,10 @@ def watch_socket_file_and_dir():
                 )
         except Exception as e:
             logging.error("Error watch socket file thread: %s", str(e))
-    
+
         sleep(PERIOD_CHECK_TIME)
 
-    
+
 def start_wait_for_conn_thread(alarm_sock_, alarm_epoll_,
         fd_to_socket_, conn_thread_should_stop_, fd_to_socket_lock_):
     conn_thread = threading.Thread(
@@ -242,6 +284,10 @@ def server_loop(alarm_config):
     watch_thread = threading.Thread(target=watch_socket_file_and_dir)
     watch_thread.daemon = True
     watch_thread.start()
+
+    systemd_monitor_thread = threading.Thread(target=monitor_sentry_service)
+    systemd_monitor_thread.daemon = True
+    systemd_monitor_thread.start()
 
     while True:
         try:

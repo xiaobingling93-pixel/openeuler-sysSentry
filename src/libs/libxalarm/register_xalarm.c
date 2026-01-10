@@ -739,6 +739,11 @@ int xalarm_get_event(struct alarm_msg* msg, struct alarm_register *register_info
         // alarm_info for communication and return alarm_msg(alarm_msg is subset of
         // alarm_info).
         if (recvlen == (int)sizeof(struct alarm_info)) {
+            // check if this is sysSentry down notification
+            if (info.usAlarmId == SYSSENTRY_DOWN_ALARM_ID) {
+                close(register_info->register_fd);
+                return -EBADF;
+            }
             // filter alarm id, alarm id reciecved which is not registered by this program
             // will be ignored and continue to wait for next msg
             if (info.usAlarmId < MIN_ALARM_ID || info.usAlarmId > MAX_ALARM_ID || 
