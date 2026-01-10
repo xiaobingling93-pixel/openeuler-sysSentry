@@ -1,14 +1,21 @@
 [Unit]
-Description = xalarm daemon for alarm messages forwarding
- 
+Description=xalarm daemon for alarm messages forwarding
+# Require socket unit to be started
+Requires=dbus.service
+Requires=xalarmd.socket
+After=xalarmd.socket
+
 [Service]
-Type = forking
+Type=forking
 ExecStart=/usr/bin/python3 /usr/bin/xalarmd
+# To grant regular users access to xalarm socket, add set ACL commands here:
+# ExecStartPre=/bin/setfacl -m u:username:rw /var/run/xalarm/alarm
+# ExecStartPre=/bin/setfacl -m u:username:rw /var/run/xalarm/report
 ExecStop=/bin/kill $MAINPID
 KillMode=process
 Restart=on-failure
 RestartSec=3s
- 
+
 [Install]
-WantedBy = multi-user.target
+WantedBy=multi-user.target
 

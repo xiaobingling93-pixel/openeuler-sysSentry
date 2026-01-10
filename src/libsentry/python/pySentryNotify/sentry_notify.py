@@ -21,8 +21,6 @@ MAX_PUC_PARAS_LEN = 8192
 
 DIR_XALARM = "/var/run/xalarm"
 PATH_REPORT_ALARM = "/var/run/xalarm/report"
-ALARM_DIR_PERMISSION = 0o750
-ALARM_SOCKET_PERMISSION = 0o700
 
 
 def check_params(alarm_id, alarm_level, alarm_type, puc_paras) -> bool:

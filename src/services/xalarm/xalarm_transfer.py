@@ -25,6 +25,7 @@ MAX_ID_NUMBER = 1128
 MAX_CONNECTION_NUM = 100 
 TEST_CONNECT_BUFFER_SIZE = 32
 MAX_RETRY_TIMES = 3
+SYSSENTRY_DOWN_ALARM_ID = 1128
 
 
 def check_filter(alarm_info, alarm_filter):
@@ -113,7 +114,7 @@ def broadcast_sentry_down(server_socket, fd_to_socket, fd_to_socket_lock):
 
     to_remove = []
 
-    alarm_info = Xalarm(1128, 1, 1, 0, 0, "sysSentry service is down")
+    alarm_info = Xalarm(SYSSENTRY_DOWN_ALARM_ID, 1, 1, 0, 0, "sysSentry service is down")
     bin_data = alarm_stu2bin(alarm_info)
 
     with fd_to_socket_lock:

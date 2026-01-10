@@ -101,6 +101,7 @@ isentry:
 	## 安装 systemd 服务文件
 	install -m 600 $(CURCONFIGDIR)/service/sysSentry.service $(SYSTEMDDIR)
 	install -m 600 $(CURCONFIGDIR)/service/xalarmd.service $(SYSTEMDDIR)
+	install -m 600 $(CURCONFIGDIR)/service/xalarmd.socket $(SYSTEMDDIR)
 	install -m 600 $(CURCONFIGDIR)/service/sentryCollector.service $(SYSTEMDDIR)
 	
 	## 安装python源代码文件到相应的目录
@@ -202,6 +203,7 @@ clean: ebpf_clean hbm_clean smm_clean bmc_clean srs_clean
 	rm -rf $(CURLIBDIR)/build
 	rm -rf $(CURSRCDIR)/build
 	rm -rf $(CURSRCDIR)/libsentry/c/log/build
+	rm -rf $(CURSRCDIR)/sentryPlugins/bmc_ras_sentry/build/
 	rm -rf $(CURSRCDIR)/syssentry.egg-info
 	rm -rf $(CURSRCDIR)/SENTRY_FILES
 
@@ -232,6 +234,7 @@ uninstall:
 	rm -rf $(PYDIR)/xalarm
 	rm -rf $(SYSTEMDDIR)/sysSentry.service
 	rm -rf $(SYSTEMDDIR)/xalarmd.service
+	rm -rf $(SYSTEMDDIR)/xalarmd.socket
 	rm -rf $(SYSTEMDDIR)/sentryCollector.service
 	systemctl daemon-reload
 
@@ -247,6 +250,8 @@ test:
 
 startup:
 	systemctl daemon-reload
+	systemctl enable xalarmd.socket
+	systemctl start xalarmd.socket
 	systemctl restart xalarmd
 	systemctl restart sysSentry
 	systemctl restart sentryCollector

@@ -1,0 +1,22 @@
+[Unit]
+Description=xalarm daemon socket for alarm messages forwarding
+# Socket must be created before the service starts
+Before=xalarmd.service
+
+[Socket]
+RuntimeDirectory=xalarm
+# Stream socket for client connections (alarm)
+ListenStream=/run/xalarm/alarm
+# Datagram socket for alarm reports (report)
+ListenDatagram=/run/xalarm/report
+# Socket file permissions: 0660 (rw-rw----), owned by root
+SocketMode=0660
+# Directory permissions: 0755 (rwxr-xr-x)
+RuntimeDirectoryMode=0755
+# Don't accept connections individually, service handles all connections
+Accept=no
+# remove socket files when xalarm daemon socket stop
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target

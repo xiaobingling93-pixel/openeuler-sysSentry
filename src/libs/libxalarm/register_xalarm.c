@@ -31,8 +31,6 @@
 #define DIR_XALARM "/var/run/xalarm"
 #define PATH_REG_ALARM "/var/run/xalarm/alarm"
 #define PATH_REPORT_ALARM "/var/run/xalarm/report"
-#define ALARM_DIR_PERMISSION 0750
-#define ALARM_SOCKET_PERMISSION 0600
 #define TIME_UNIT_MILLISECONDS 1000
 
 #define MAX_PARAS_LEN 8191
@@ -104,10 +102,8 @@ static int create_unix_socket(const char *path)
     }
 
     if (access(DIR_XALARM, F_OK) == -1) {
-        if (mkdir(DIR_XALARM, ALARM_DIR_PERMISSION) == -1) {
-            printf("mkdir %s failed\n", DIR_XALARM);
-            goto release_socket;
-        }
+        printf("xalarm directory %s does not exist, service may not be started\n", DIR_XALARM);
+        goto release_socket;
     }
 
     if (memset(&alarm_addr, 0, sizeof(alarm_addr)) == NULL) {

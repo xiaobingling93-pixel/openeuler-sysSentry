@@ -16,9 +16,6 @@ MAX_ALARM_ID = (MIN_ALARM_ID + MAX_NUM_OF_ALARM_ID - 1)
 DIR_XALARM = "/var/run/xalarm"
 PATH_REG_ALARM = "/var/run/xalarm/alarm"
 PATH_REPORT_ALARM = "/var/run/xalarm/report"
-ALARM_DIR_PERMISSION = 0o0750
-ALARM_REG_SOCK_PERMISSION = 0o0700
-ALARM_SOCKET_PERMISSION = 0o0700
 TIME_UNIT_MILLISECONDS = 1000
 ALARM_REGISTER_INFO = None
 
@@ -71,8 +68,8 @@ class AlarmRegister:
             sock.setblocking(False)
 
             if not os.access(DIR_XALARM, os.F_OK):
-                os.makedirs(DIR_XALARM)
-                os.chmod(DIR_XALARM, ALARM_DIR_PERMISSION)
+                sys.stderr.write(f"xalarm directory {DIR_XALARM} does not exist, service may not be started\n")
+                return None
 
             sock.connect(PATH_REG_ALARM)
             return sock
