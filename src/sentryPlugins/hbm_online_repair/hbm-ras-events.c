@@ -26,6 +26,7 @@
 #include "logger.h"
 
 #define SIG_LIST_LEN 4
+#define DEBUGFS_DIR_MAX_LEN 512
 
 static int get_debugfs_dir(char *debugfs_dir, size_t len)
 {
@@ -50,6 +51,10 @@ static int get_debugfs_dir(char *debugfs_dir, size_t len)
             break;
 
         if (strcmp(type, "debugfs") == 0) {
+            if (strlen(dir) > DEBUGFS_DIR_MAX_LEN) {
+                log(LOG_ERROR, "Unacceptable debugfs path\n");
+                return -1;
+            }
             strncpy(debugfs_dir, dir, len - 1);
             debugfs_dir[len - 1] = '\0';
             fclose(fp);
@@ -68,9 +73,7 @@ static int open_trace(char *trace_dir, char *name, int flags)
     int ret;
     char fname[MAX_PATH + 1];
 
-    strcpy(fname, trace_dir);
-    strcat(fname, "/");
-    strcat(fname, name);
+    snprintf(fname, sizeof(fname), "%s/%s", trace_dir, name);
 
     ret = open(fname, flags);
     if (ret < 0)
