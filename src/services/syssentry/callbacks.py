@@ -45,9 +45,9 @@ def task_get_result(mod_name):
 
 def task_get_alarm(data):
     """get alarm by mod name"""
-    task_name = data['task_name']
-    time_range = data['time_range']
     try:
+        task_name = data['task_name']
+        time_range = data['time_range']
         detailed = data['detailed']
     except KeyError:
         logging.debug("Key 'detailed' does not exist in the dictionary")
