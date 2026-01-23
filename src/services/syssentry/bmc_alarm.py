@@ -153,7 +153,7 @@ def bmc_recv(server_socket: socket.socket):
     except socket.error:
         logging.error("socket error")
         return
-    except (ValueError, OSError, UnicodeError, TypeError, NotImplementedError):
+    except (ValueError, OSError, TypeError, IndexError, NotImplementedError):
         logging.error("server recv bmc msg failed!")
         client_socket.close()
         return

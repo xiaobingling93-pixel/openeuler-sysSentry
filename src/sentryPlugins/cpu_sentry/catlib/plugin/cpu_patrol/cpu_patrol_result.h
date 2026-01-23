@@ -2,6 +2,7 @@
 #define CPU_PATROL_RESULT_H
 
 #include <stdio.h>
+#include <unistd.h>
 #include <sched.h>
 #include "cat_structs.h"
 
@@ -30,7 +31,18 @@ typedef enum {
 #define CAT_LOG_W(...) CAT_LOG("WARN", __VA_ARGS__)
 #define CAT_LOG_E(...) CAT_LOG("ERROR", __VA_ARGS__)
 
-#define MAX_CPU_CORES 4096
+static inline int get_cpu_count(void)
+{
+    long n = sysconf(_SC_NPROCESSORS_CONF);
+    if (n <= 0) {
+        CAT_LOG_W("Warning: Failed to get cpu count, using fallback (4096)\n");
+        return 4096;
+    }
+    return (int)n
+}
+
+
+#define MAX_CPU_CORES get_cpu_count()
 typedef struct {
     unsigned int order_list[MAX_CPU_CORES];
     unsigned short current_nums;
