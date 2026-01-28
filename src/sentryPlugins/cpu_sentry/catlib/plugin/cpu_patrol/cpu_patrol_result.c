@@ -27,6 +27,11 @@ static cat_return_t insert_core_to_list(core_list_st *core_list, int coreid)
         return CAT_ERR;
     }
 
+    if (core_list->current_nums >= MAX_CPU_CORES) {
+        CAT_LOG_W("current cpu nums exceeds the maximum capacity (%d)", MAX_CPU_CORES);
+        return CAT_OK;
+    }
+
     bool if_insert = false;
     for (unsigned short i = 0; i < core_list->current_nums; i++) {
         if (core_list->order_list[i] < (unsigned int)coreid) {
@@ -311,6 +316,11 @@ void handle_patrol_result(void)
 
     if (buf[0] == '\0') {
         return;
+    }
+
+    int max_cpu_number = get_cpu_count();
+    if (max_cpu_number > MAX_CPU_CORES) {
+        CAT_LOG_W("the cpu num in the current environment exceeds the num supported by the catcli");
     }
 
     // 记录巡检过程中发现的故障核

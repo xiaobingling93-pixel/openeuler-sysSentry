@@ -38,11 +38,12 @@ static inline int get_cpu_count(void)
         CAT_LOG_W("Warning: Failed to get cpu count, using fallback (4096)\n");
         return 4096;
     }
-    return (int)n
+    return (int)n;
 }
 
 
-#define MAX_CPU_CORES get_cpu_count()
+#define MAX_CPU_CORES 4096
+
 typedef struct {
     unsigned int order_list[MAX_CPU_CORES];
     unsigned short current_nums;
