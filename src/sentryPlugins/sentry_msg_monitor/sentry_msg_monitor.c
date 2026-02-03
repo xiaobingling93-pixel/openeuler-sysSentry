@@ -620,6 +620,8 @@ int main(void)
     int ret, pid_fd;
     pthread_t sender, receiver;
 
+    setLogLevel();
+
     pid_fd = check_and_set_pid_file();
     if (pid_fd < 0) {
         return pid_fd;
