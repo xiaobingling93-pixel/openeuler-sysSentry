@@ -7,14 +7,18 @@ sections:
   - label: 安装sysSentry
     href: ./installation_and_usage.md
   - label: 巡检插件
-    href: ./plugins.md
     sections:
+      - label: 插件简介
+        href: ./plugins.md
+      - label: 慢IO插件
+        sections:
+            - label: AI阈值慢盘检测插件
+              href: ./ai_block_io_plugin.md
+            - label: 平均阈值慢盘检测插件
+              href: ./avg_block_io_plugin.md
       - label: CPU故障巡检插件
         href: ./cpu_fault_inspection_plugin.md
-      - label: AI阈值慢盘检测插件
-        href: ./ai_block_io_plugin.md
-      - label: 平均阈值慢盘检测插件
-        href: ./avg_block_io_plugin.md
+
   - label: 常见问题与解决方法
     href: ./question_and_answer.md
   - label: 二次开发指南
