@@ -73,7 +73,7 @@ static int handle_file_lock(int fd, bool lock)
     return ret;
 }
 
-static int check_and_set_pid_file()
+static int check_and_set_pid_file(void)
 {
     int ret, fd;
     fd = open(PID_FILE_PATH, O_CREAT | O_RDWR, 0600);
@@ -615,7 +615,7 @@ close_send:
     return NULL;
 }
 
-int main()
+int main(void)
 {
     int ret, pid_fd;
     pthread_t sender, receiver;

@@ -5,6 +5,9 @@
  * Create: 2025-2-16
  */
 
+#include <string.h>
+#include <stdarg.h>
+
 #include "log_utils.h"
 
 static LogLevel currentLogLevel = LOG_INFO;
@@ -21,7 +24,7 @@ void logMessage(LogLevel level, char* file, int line, const char *format, ...)
     }
 }
 
-void setLogLevel()
+void setLogLevel(void)
 {
     char* levelStr = getenv(LOG_LEVEL_ENV);
     if (levelStr == NULL) {
