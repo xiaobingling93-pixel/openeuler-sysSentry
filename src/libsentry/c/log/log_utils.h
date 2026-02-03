@@ -10,8 +10,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <stdarg.h>
 #include <time.h>
 #include <libgen.h>
 
@@ -25,7 +23,7 @@ typedef enum {
 #define LOG_FD(level) (level == LOG_ERROR ? stderr : stdout)
 
 #define LOG_LEVEL_STRING(level) \
-    (level == LOG_DEBUG ? "DEBUG":   \
+    (level == LOG_DEBUG ? "DEBUG" :   \
      level == LOG_INFO ? "INFO" :    \
      level == LOG_WARN ? "WARNING" : \
      level == LOG_ERROR ? "ERROR" :  \
@@ -49,14 +47,14 @@ typedef enum {
             line);                                                  \
     } while (0)
 
-// configure Env for log 
+// configure Env for log
 #define LOG_LEVEL_ENV "LOG_LEVEL"
 
 // print msg
 void logMessage(LogLevel level, char* file, int line, const char *format, ...);
 
 // set log level
-void setLogLevel();
+void setLogLevel(void);
 
 // log function
 #define logging_debug(...)       logMessage(LOG_DEBUG, __FILE__, __LINE__, __VA_ARGS__)

@@ -630,7 +630,7 @@ int report_result(const char *task_name, enum RESULT_LEVEL result_level, const c
         goto free_json;
     }
 
-    char *message = (char *)calloc(RESULT_INFO_HEAD_LEN + RESULT_INFO_MAX_LEN, sizeof(char));
+    char *message = (char *)calloc(RESULT_INFO_HEAD_LEN + send_data_len + 1, sizeof(char));
     if (!message) {
         fprintf(stderr, "Failed to allocate memory!");
         goto free_json;

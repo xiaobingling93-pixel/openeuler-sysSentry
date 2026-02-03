@@ -15,10 +15,9 @@
 */
 
 #include <stdlib.h>
-#include <fcntl.h>
+#include <string.h>
 #include <unistd.h>
 
-#include "register_xalarm.h"
 #include "log_utils.h"
 #include "bmc_log_lib.h"
 

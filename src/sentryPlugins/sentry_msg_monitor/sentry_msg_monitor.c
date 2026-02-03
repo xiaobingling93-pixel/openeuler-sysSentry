@@ -45,8 +45,14 @@
 #define PYHS_ADDR_HEX_STR_MAX_LEN 20
 
 struct receiver_cleanup_data {
+    int fd;
     struct alarm_msg *al_msg;
     struct alarm_register* register_info;
+};
+
+struct sender_cleanup_data {
+    int fd;
+    char *str;
 };
 
 static int handle_file_lock(int fd, bool lock)
@@ -67,7 +73,7 @@ static int handle_file_lock(int fd, bool lock)
     return ret;
 }
 
-static int check_and_set_pid_file()
+static int check_and_set_pid_file(void)
 {
     int ret, fd;
     fd = open(PID_FILE_PATH, O_CREAT | O_RDWR, 0600);
@@ -371,9 +377,12 @@ static unsigned short convert_msg_type_to_xalarm_type(enum sentry_msg_helper_msg
 static void sender_cleanup(void* arg)
 {
     logging_debug("In sender thread cleanup\n");
-    int fd = *(int *)arg;
-    if (fd > 0) {
-        close(fd);
+    struct sender_cleanup_data *scd = (struct sender_cleanup_data *) arg;
+    if (scd->fd > 0) {
+        close(scd->fd);
+    }
+    if (scd->str) {
+        free(scd->str);
     }
     logging_info("Sender thread cleanup over\n");
 }
@@ -385,7 +394,6 @@ static void* sender_thread(void* arg)
     if (fd < 0) {
         goto close_recv;
     }
-    pthread_cleanup_push(sender_cleanup, &fd);
 
     pthread_t partner_t;
     char *str = (char *) calloc (MSG_STR_MAX_LEN, sizeof(char));
@@ -394,6 +402,12 @@ static void* sender_thread(void* arg)
         close(fd);
         goto close_recv;
     }
+
+    struct sender_cleanup_data scd = {
+        .fd = fd,
+        .str = str,
+    };
+    pthread_cleanup_push(sender_cleanup, &scd);
 
     while (1) {
         struct sentry_msg_helper_msg smh_msg;
@@ -467,6 +481,9 @@ static void receiver_cleanup(void* arg)
 {
     logging_debug("In receiver thread cleanup\n");
     struct receiver_cleanup_data* rcd = (struct receiver_cleanup_data*) arg;
+    if (rcd->fd > 0) {
+        close(rcd->fd);
+    }
     if (rcd->al_msg) {
         free(rcd->al_msg);
     }
@@ -527,6 +544,7 @@ re_register:
     }
 
     struct receiver_cleanup_data rcd = {
+        .fd = fd,
         .al_msg = al_msg,
         .register_info = register_info
     };
@@ -597,10 +615,12 @@ close_send:
     return NULL;
 }
 
-int main()
+int main(void)
 {
     int ret, pid_fd;
     pthread_t sender, receiver;
+
+    setLogLevel();
 
     pid_fd = check_and_set_pid_file();
     if (pid_fd < 0) {
