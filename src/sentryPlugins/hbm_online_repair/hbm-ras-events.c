@@ -51,12 +51,13 @@ static int get_debugfs_dir(char *debugfs_dir, size_t len)
             break;
 
         if (strcmp(type, "debugfs") == 0) {
-            if (strlen(dir) > DEBUGFS_DIR_MAX_LEN) {
-                log(LOG_ERROR, "Unacceptable debugfs path\n");
+            size_t dir_len = strlen(dir);
+            if (dir_len >= len || dir_len > DEBUGFS_DIR_MAX_LEN) {
+                log(LOG_ERROR, "Unacceptable debugfs path length: %zu\n", dir_len);
+                fclose(fp);
                 return -1;
             }
-            strncpy(debugfs_dir, dir, len - 1);
-            debugfs_dir[len - 1] = '\0';
+            snprintf(debugfs_dir, len, "%s", dir);
             fclose(fp);
             return 0;
         }
