@@ -4,7 +4,7 @@ import logging
 import socket
 from enum import Enum
 
-from syssentry.utils import execute_command
+from syssentry.utils import execute_command, MAX_MSG_LEN
 
 MAX_CORE_ID = 1024
 MAX_SOCKET_ID = 255
@@ -236,6 +236,10 @@ def cpu_alarm_recv(server_socket: socket.socket):
         data = client_socket.recv(PARAM_DATA_LEN)
         data_len = check_fixed_param(data, (MIN_DATA_LEN, MAX_DATA_LEN))
 
+        if data_len < 0 or data_len > MAX_MSG_LEN:
+            client_socket.close()
+            logging.error("socket recv data is illegal:%d", data_len)
+            return
         data = client_socket.recv(data_len)
 
         command, event_type, socket_id, core_id = parser_cpu_alarm_info(data)

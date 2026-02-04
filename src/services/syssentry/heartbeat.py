@@ -21,6 +21,7 @@ import socket
 from .mod_status import set_runtime_status, RUNNING_STATUS, FAILED_STATUS
 from .global_values import SENTRY_RUN_DIR
 from .task_map import TasksMap
+from .utils import MAX_MSG_LEN
 
 THB_SOCKET_PATH = "/var/run/sysSentry/heartbeat.sock"
 THB_MAGIC = 'THB'
@@ -102,6 +103,10 @@ def heartbeat_recv(heartbeat_socket: socket.socket):
     if data_len < 0:
         logging.error("heartbeat msg head parse failed")
         client_socket.close()
+        return
+    if data_len > MAX_MSG_LEN:
+        client_socket.close()
+        logging.error("socket recv data is illegal:%d", data_len)
         return
     logging.debug("hb msg data length: %d", data_len)
 

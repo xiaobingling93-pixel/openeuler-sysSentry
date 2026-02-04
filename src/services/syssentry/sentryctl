@@ -20,6 +20,8 @@ import sys
 import logging
 import json
 
+from syssentry.utils import MAX_MSG_LEN
+
 CTL_SOCKET_PATH = "/var/run/sysSentry/control.sock"
 MAX_PARAM_LENGTH = 256
 
@@ -104,6 +106,10 @@ def client_send_and_recv(request_data, data_str_len):
 
     try:
         client_socket.send(request_msg.encode())
+        if len("CTL") + data_str_len > MAX_MSG_LEN:
+            client_socket.close()
+            logging.error("socket recv data is illegal:%d", len("CTL") + data_str_len)
+            return None
         res_data = client_socket.recv(len("CTL") + data_str_len)
         res_data = res_data.decode()
     except (OSError, UnicodeError):
@@ -114,11 +120,16 @@ def client_send_and_recv(request_data, data_str_len):
     # res: RES{len}{data}
     res_magic = res_data[:3]
     if res_magic != "RES":
+        client_socket.close()
         print("res msg format error")
         return None
 
     try:
         res_data_len = int(res_data[3:])
+        if res_data_len > MAX_MSG_LEN:
+            client_socket.close()
+            logging.error("socket recv data is illegal:%d", res_data_len)
+            return
         res_msg_data = client_socket.recv(res_data_len)
         res_msg_data = res_msg_data.decode()
         return res_msg_data

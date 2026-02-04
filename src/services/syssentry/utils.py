@@ -17,6 +17,9 @@ import subprocess
 import shlex
 from datetime import datetime, timezone, timedelta
 
+# Security: Maximum allowed message length to prevent DoS attacks
+MAX_MSG_LEN = 10 * 1024 * 1024  # 10MB
+
 
 def is_valid_cmd(cmd):
     """check cmd"""

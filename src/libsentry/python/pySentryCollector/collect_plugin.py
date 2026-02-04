@@ -18,6 +18,8 @@ import logging
 import re
 import os
 
+from syssentry.utils import MAX_MSG_LEN
+
 COLLECT_SOCKET_PATH = "/var/run/sysSentry/collector.sock"
 
 # data length param
@@ -119,6 +121,7 @@ def client_send_and_recv(request_data, data_str_len, protocol):
 
     res_magic = res_data[:CLT_MSG_MAGIC_LEN]
     if res_magic != "RES":
+        client_socket.close()
         logging.debug("res msg format error")
         return None
 
@@ -126,15 +129,21 @@ def client_send_and_recv(request_data, data_str_len, protocol):
     try:
         protocol_id = int(protocol_str)
     except ValueError:
+        client_socket.close()
         logging.debug("recv msg protocol id is invalid %s", protocol_str)
         return None
 
     if protocol_id >= ClientProtocol.PRO_END:
+        client_socket.close()
         logging.debug("protocol id is invalid")
         return None
 
     try:
         res_data_len = int(res_data[CLT_MSG_MAGIC_LEN+CLT_MSG_PRO_LEN:])
+        if res_data_len < 0 or res_data_len > MAX_MSG_LEN:
+            client_socket.close()
+            logging.error("socket recv data is illegal:%d", res_data_len)
+            return None
         res_msg_data = client_socket.recv(res_data_len)
         res_msg_data = res_msg_data.decode()
         return res_msg_data

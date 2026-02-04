@@ -24,7 +24,6 @@ import fcntl
 import select
 
 from .sentry_config import SentryConfig, get_log_level
-
 from .task_map import TasksMap
 from .global_values import SENTRY_RUN_DIR, SENTRY_RUN_DIR_PERM
 from .cron_process import period_tasks_handle
@@ -43,7 +42,7 @@ from .load_mods import load_tasks, reload_single_mod
 from .heartbeat import (heartbeat_timeout_chk, heartbeat_recv)
 from .result import RESULT_MSG_HEAD_LEN, RESULT_MSG_MAGIC_LEN, RESULT_MAGIC
 from .result import RESULT_LEVEL_ERR_MSG_DICT, ResultLevel
-from .utils import get_current_time_string
+from .utils import get_current_time_string, MAX_MSG_LEN
 from .alarm import alarm_register
 
 from xalarm.register_xalarm import xalarm_unregister
@@ -299,7 +298,10 @@ def server_recv(server_socket: socket.socket):
         client_socket.close()
         logging.error("msg head parse failed")
         return
-
+    if data_len > MAX_MSG_LEN:
+        client_socket.close()
+        logging.error("socket recv data is illegal:%d", data_len)
+        return
     try:
         msg_data = client_socket.recv(data_len)
         msg_data_decode = msg_data.decode()
@@ -317,6 +319,7 @@ def server_recv(server_socket: socket.socket):
         msg_data_decode_dict = json.loads(msg_data_decode)
         cmd_type = msg_data_decode_dict.get("type")
     except json.JSONDecodeError:
+        client_socket.close()
         logging.error("msg data process: msg_data_decode json decode error")
         return
 
@@ -365,6 +368,10 @@ def server_result_recv(server_socket: socket.socket):
     if data_len < 0:
         client_socket.close()
         logging.error("msg head parse failed")
+        return
+    if data_len > MAX_MSG_LEN:
+        client_socket.close()
+        logging.error("socket recv data is illegal:%d", data_len)
         return
 
     try:
