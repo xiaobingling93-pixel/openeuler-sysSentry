@@ -20,6 +20,7 @@ import subprocess
 import re
 from typing import Union
 
+from syssentry.utils import is_valid_cmd
 from .collect_config import CollectConfig
 from .collect_config import CONF_IO_NVME_SSD, CONF_IO_SATA_SSD, CONF_IO_SATA_HDD, CONF_IO_THRESHOLD_DEFAULT
 from .collect_plugin import get_disk_type, DiskType
@@ -271,7 +272,7 @@ class CollectIo():
                 file_path = os.path.join(blk_io_hierarchy_path, file_name)
                 if file_name == 'stats':
                     all_disk.append(disk_name)
-        
+
         if len(all_disk) == 0:
             logging.debug("no blk_io_hierarchy disk, it is not lock-free collection")
             return False
@@ -293,12 +294,22 @@ class CollectIo():
         return len(IO_GLOBAL_DATA) != 0
     
     def is_ebpf_avaliable(self):
-        with open('/proc/version', 'r') as f:
-            kernel_version = f.read().split()[2]
-            major_version = kernel_version.split('-')[0]
+        try:
+            with open('/proc/version', 'r') as f:
+                kernel_version = f.read().split()[2]
+                major_version = kernel_version.split('-')[0]
+        except (FileNotFoundError, IndexError, PermissionError):
+            logging.error("Failed to read kernel version")
+            return False
         
         base_path = '/sys/kernel/debug/block'
-        for disk_name in os.listdir(base_path):
+        try:
+            disk_names = os.listdir(base_path)
+        except (FileNotFoundError, PermissionError):
+            logging.error("Failed to access %s", base_path)
+            return False
+
+        for disk_name in disk_names:
             if not self.loop_all and disk_name not in self.disk_list:
                 continue
             self.disk_map_stage[disk_name] = EBPF_STAGE_LIST
@@ -306,7 +317,7 @@ class CollectIo():
             IO_GLOBAL_DATA[disk_name] = {}
             IO_DUMP_DATA[disk_name] = {}
             self.init_disk_collect(disk_name)
-        
+
         for disk_name, stage_list in self.disk_map_stage.items():
             for stage in stage_list:
                 self.window_value[disk_name][stage] = {}
@@ -486,8 +497,21 @@ class CollectIo():
         self
     ) -> None:
         global EBPF_PROCESS
-        EBPF_PROCESS = subprocess.Popen(self.ebpf_base_path, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    
+        if is_valid_cmd(self.ebpf_base_path):
+            logging.error("Invalid ebpf_base_path: %s" % self.ebpf_base_path)
+            return
+        try:
+            EBPF_PROCESS = subprocess.Popen(
+                self.ebpf_base_path,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                shell=False
+            )
+        except (FileNotFoundError, PermissionError, ValueError):
+            logging.error("Failed to start ebpf collector")
+            EBPF_PROCESS = None
+
     def stop_ebpf_subprocess(
         self
     ) -> None:
