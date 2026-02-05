@@ -609,8 +609,8 @@ static bool tc_ring_one_scan_test_block(uintptr_t base_addr, int scan_bit, size_
         rd_data[0] = *((uint64_t *)(base_addr + i + word_offset));                              // base_addr + n * 64 + word_offset
         rd_data[1] = *((uint64_t *)(base_addr + i + TC_RING_ONE_CACHELINE_SIZE + word_offset)); // base_addr + (n + 1) * 64 + word_offset
         if((rd_data[0] != tgt_dat_all_one) || (rd_data[1] != tgt_dat_pattern)) {
-            snprintf(err_msg, sizeof(err_msg), "[ERROR][CORE%d] test loop %lu vaddr = %#lx paddr = %#lx read_data = %#llx read_disturb = %#llx "
-                "target_data = %#llx bit_index = %d offset = %#lx block_size = %#lx",
+            snprintf(err_msg, sizeof(err_msg), "[ERROR][CORE%d] test loop %lu vaddr = %#lx paddr = %#lx read_data = %#lx read_disturb = %#lx "
+                "target_data = %#lx bit_index = %d offset = %#zu block_size = %#zu",
                 sched_getcpu(), loop_cnt, (base_addr + i + word_offset), vaddr_to_phys(base_addr + i + word_offset), rd_data[1], rd_data[0],
                 tgt_dat_pattern, scan_bit, word_offset, block_size);
             soc_ring_sentry_report(RESULT_LEVEL_MAJOR_ALM, err_msg);

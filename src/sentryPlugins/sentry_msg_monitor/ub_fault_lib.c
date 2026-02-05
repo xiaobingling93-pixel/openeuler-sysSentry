@@ -21,6 +21,7 @@
 #include <dirent.h>
 #include <stdbool.h>
 #include <ctype.h>
+#include <string.h>
 
 #include "log_utils.h"
 #include "ub_fault_lib.h"
