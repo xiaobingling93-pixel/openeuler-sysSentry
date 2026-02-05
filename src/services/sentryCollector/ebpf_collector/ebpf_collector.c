@@ -204,6 +204,7 @@ static int print_map_res(int fd, char *stage, int map_size, int *io_dump)
                 io_type,
                 device_name
             );
+            free(device_name);
             fflush(stdout);
         }
     }
