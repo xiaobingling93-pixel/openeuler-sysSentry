@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <limits.h>
 #include <xalarm/register_xalarm.h>
 
 #include "cat_structs.h"
@@ -82,6 +83,10 @@ static cat_return_t parse_patrol_result(char *buf, core_list_st *fault_list)
         if (coreid_after < 0) {
             insert_core_to_list(fault_list, coreid_before);
         } else {
+            if (coreid_before > coreid_after || coreid_before < 0 || coreid_after < 0 || coreid_after == INT_MAX) {
+                CAT_LOG_E("invalid cpu info: %d-%d\n", coreid_before, coreid_after);
+                return CAT_ERR;
+            }
             for (int i = coreid_before; i <= coreid_after; i++) {
                 insert_core_to_list(fault_list, i);
             }
