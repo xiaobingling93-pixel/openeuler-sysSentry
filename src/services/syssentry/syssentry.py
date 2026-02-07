@@ -574,8 +574,11 @@ def sigchld_handler(signum, _f):
             if os.WIFEXITED(child_status):
                 # exit normally with exit() syscall
                 logging.info("task %s exit with status %d", task.name, os.WEXITSTATUS(child_status))
-                if task.type == "PERIOD" and task.period_enabled:
-                    set_runtime_status(task.name, WAITING_STATUS)
+                if task.type == "PERIOD":
+                    if task.period_enabled:
+                        set_runtime_status(task.name, WAITING_STATUS)
+                    else:
+                        set_runtime_status(task.name, EXITED_STATUS)
                 else:
                     if os.WEXITSTATUS(child_status):
                         set_runtime_status(task.name, NONZERO_EXITED_STATUS)
