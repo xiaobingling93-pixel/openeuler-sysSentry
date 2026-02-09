@@ -58,7 +58,7 @@ def set_runtime_status(task_name, status_code):
     elif task_type == PERIOD_TYPE and status_code in PERIOD_RUNTIME_STATUS:
         pass
     else:
-        logging.error("invalid task name")
+        logging.error(f"invalid status {status_code} for {task_type} type task {task_name}")
         return
 
     TasksMap.tasks_dict.get(task_type).get(task_name).runtime_status = status_code
