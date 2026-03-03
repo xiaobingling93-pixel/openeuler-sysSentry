@@ -41,6 +41,8 @@ std::string ExtractFileName(const std::string& path);
 int ExecCommand(const std::string& cmd, std::vector<std::string>& result);
 std::string ByteToHex(uint8_t byte);
 std::vector<std::string> SplitString(const std::string& str, const std::string& split);
+std::string uint32_to_hex_string(uint32_t num);
+std::string unit32_to_local_time(uint32_t timestamp);
 }
 
 #endif

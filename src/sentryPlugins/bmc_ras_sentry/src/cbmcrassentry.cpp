@@ -32,17 +32,23 @@ const std::string IPMI_KEY_IP_ADDR = "IP Address";
 const std::string MSG_BMCIP_EMPTY = "ipmitool get bmc ip failed.";
 const std::string MSG_BMC_QUERY_FAIL = "ipmitool query failed.";
 const std::string MSG_EXIT_SUCCESS = "receive exit signal, task completed.";
+const std::string JSON_KEY_ID = "id";
+const std::string JSON_KEY_BMC_ID = "bm_id";
+const std::string JSON_KEY_LEVEL = "level";
+const std::string JSON_KEY_TIME = "time";
+const std::string JSON_KEY_DISK_INFO = "disk info";
+const std::string JSON_KEY_PHYSICAL_DISK = "physical disk";
+const std::string JSON_KEY_LOGICAL_DISK = "logical disk";
 const std::string JSON_KEY_MSG = "msg";
-const std::string JSON_KEY_ALARM_SOURCE = "alarm_source";
-const std::string JSON_KEY_DRIVER_NAME = "driver_name";
-const std::string JSON_KEY_IO_TYPE = "io_type";
-const std::string JSON_KEY_REASON = "reason";
-const std::string JSON_KEY_BLOCK_STACK = "block_stack";
-const std::string JSON_KEY_DETAILS = "details";
 const std::string MOD_SECTION_COMMON = "common";
 const std::string MOD_COMMON_ALARM_ID = "alarm_id";
 const std::string ALL_BMC_EVENTS = "0000";
 const std::string ALL_BMC_DEVICE_EVENTS = "00";
+const std::string IPMI_REQUEST_HEAD = "ipmitool raw 0x30 0x94";
+const std::string IPMI_REQUEST_KUNPENG_ID = "0xDB 0x07 0x00";
+const std::string IPMI_REQUEST_GET_CONCISE_EVENT = "0x40 0x00";
+const std::string IPMI_REQUEST_ALL_TYPE = "0xFF";
+const std::string IPMI_REQUEST_BLOCK_ID = "0x02";
 
 CBMCRasSentry::CBMCRasSentry() :
     m_running(false),
@@ -250,8 +256,8 @@ void CBMCRasSentry::GetBMCIp()
      5       请求类型 默认0x00
      6-7     需要查询的事件起始编号,某些情况下查询到的事件可能有多条,
              单次响应无法全部返回,因此需要修改该值分页查询
-     8       事件严重级别 位图形式,bit0-normal,bit1-minor,bit2-major,bit3-critical,慢盘事件只支持normal
-     9       主体类型 硬盘类型0x02
+     8       事件严重级别 位图形式,bit0-normal,bit1-minor,bit2-major,bit3-critical,0xFF表示不指定
+     9       主体类型 硬盘类型0x02,0xFF表示不指定
 响应 字节顺序 含义
      1       completion code 调用成功时该字节不会显示在终端上
      2-4     厂商ID,对应请求中内容
@@ -278,7 +284,7 @@ int CBMCRasSentry::QueryEvents()
     m_currentDeviceIds.clear();
 
     while (true) {
-        std::string cmd = BuildIPMICommand(currentIndex);
+        std::string cmd = BuildIPMICommand(currentIndex, IPMI_REQUEST_ALL_TYPE, IPMI_REQUEST_BLOCK_ID);
         std::vector<std::string> hexBytes = ExecuteIPMICommand(cmd);
         if (hexBytes.empty()) {
             break;
@@ -326,15 +332,18 @@ int CBMCRasSentry::QueryEvents()
     return ret;
 }
 
-std::string CBMCRasSentry::BuildIPMICommand(uint16_t startIndex)
+std::string CBMCRasSentry::BuildIPMICommand(uint16_t startIndex, std::string severity, std::string subjectType)
 {
     uint8_t indexHigh = static_cast<uint8_t>((startIndex >> 8) & 0xff);
     uint8_t indexLow = static_cast<uint8_t>(startIndex & 0xff);
     std::ostringstream cmdStream;
-    cmdStream << "ipmitool raw 0x30 0x94 0xDB 0x07 0x00 0x40 0x00"
+    cmdStream << IPMI_REQUEST_HEAD
+            << " " << IPMI_REQUEST_KUNPENG_ID
+            << " " << IPMI_REQUEST_GET_CONCISE_EVENT 
             << " " << ByteToHex(indexLow)
             << " " << ByteToHex(indexHigh)
-            << " 0x01 0x02";
+            << " " << severity
+            << " " << subjectType;
     return cmdStream.str();
 }
 
@@ -470,29 +479,35 @@ void CBMCRasSentry::ProcessEvents(const std::vector<std::string>& hexBytes, uint
 void CBMCRasSentry::ReportAlarm(const IPMIEvent& event)
 {
     uint8_t ucAlarmLevel = MINOR_ALM;
-    uint8_t ucAlarmType = 0;
+    uint8_t ucAlarmType = ALARM_TYPE_OCCUR;
+
+    auto it = m_BMCOpenEvents.find(event.alarmTypeCode);
+    if (it == m_BMCOpenEvents.end()) {
+        BMC_LOG_DEBUG << "Skipping closed ipmi id: 0x"
+                      << std::hex << event.alarmTypeCode;
+        return;
+    }
+    std::string event_id = it->second;
+
     if (event.alarmTypeCode == ALARM_OCCUR_CODE) {
         ucAlarmType = ALARM_TYPE_OCCUR;
         m_currentDeviceIds.insert(event.deviceId);
     } else if (event.alarmTypeCode == ALARM_CLEAR_CODE) {
         ucAlarmType = ALARM_TYPE_RECOVER;
-    } else {
-        BMC_LOG_DEBUG << "Skipping unknown alarm type: 0x"
-                     << std::hex << event.alarmTypeCode;
-        return;
     }
 
-    BMC_LOG_INFO << "Report alarm, type: " << static_cast<int>(ucAlarmType);
-    BMC_LOG_INFO << "level: " << static_cast<int>(ucAlarmLevel);
-    BMC_LOG_INFO << "deviceId: " << static_cast<int>(event.deviceId);
-    BMC_LOG_INFO << "timestamp: " << event.timestamp;
     json_object* jObject = json_object_new_object();
-    json_object_object_add(jObject, JSON_KEY_ALARM_SOURCE.c_str(), json_object_new_string(BMC_TASK_NAME.c_str()));
-    json_object_object_add(jObject, JSON_KEY_DRIVER_NAME.c_str(), json_object_new_string(std::to_string(event.deviceId).c_str()));
-    json_object_object_add(jObject, JSON_KEY_IO_TYPE.c_str(), json_object_new_string("read,write"));
-    json_object_object_add(jObject, JSON_KEY_REASON.c_str(), json_object_new_string("driver slow"));
-    json_object_object_add(jObject, JSON_KEY_BLOCK_STACK.c_str(), json_object_new_string("rq_driver"));
-    json_object_object_add(jObject, JSON_KEY_DETAILS.c_str(), json_object_new_string("{}}"));
+    json_object* disk_info = json_object_new_object();
+    const char* bmc_id = uint32_to_hex_string(event.alarmTypeCode).c_str();
+    const char* time = unit32_to_local_time(event.timestamp).c_str();
+    json_object_object_add(jObject, JSON_KEY_ID.c_str(), json_object_new_string(event_id.c_str()));
+    json_object_object_add(jObject, JSON_KEY_BMC_ID.c_str(), json_object_new_string(bmc_id));
+    json_object_object_add(jObject, JSON_KEY_LEVEL.c_str(), json_object_new_int(event.severity));
+    json_object_object_add(jObject, JSON_KEY_TIME.c_str(), json_object_new_string(time));
+    json_object_object_add(disk_info, JSON_KEY_PHYSICAL_DISK.c_str(),
+                           json_object_new_string(std::to_string(event.deviceId).c_str()));
+    json_object_object_add(disk_info, JSON_KEY_LOGICAL_DISK.c_str(), json_object_new_string(""));
+    json_object_object_add(jObject, JSON_KEY_DISK_INFO.c_str(), disk_info);
     const char *jData = json_object_to_json_string(jObject);
     int ret = xalarm_Report(m_alarmId, ucAlarmLevel, ucAlarmType, const_cast<char*>(jData));
     if (ret != RETURN_CODE_SUCCESS) {

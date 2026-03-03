@@ -21,6 +21,6 @@ const int BMCPLU_PATROL_DEFAULT = 300;
 const int BMCPLU_CONFIG_CHECK_CYCLE = 10; // seconds
 const int BMCPLU_DEFAULT_SLEEP_CYCLE = 3; // seconds
 const int BMCPLU_LOGFILE_CHECK_CYCLE = 30; // second
-const int BMCPLU_DEFAULT_ALARM_ID = 1002;
+const int BMCPLU_DEFAULT_ALARM_ID = 1015;
 }
 #endif

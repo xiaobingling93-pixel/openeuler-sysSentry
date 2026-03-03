@@ -55,7 +55,7 @@ private:
     void ReportAlarm(const IPMIEvent& event);
     void ReportResult(int resultLevel, const std::string& msg);
     int QueryEvents();
-    std::string BuildIPMICommand(uint16_t startIndex);
+    std::string BuildIPMICommand(uint16_t startIndex, std::string severity, std::string subjectType);
     std::vector<std::string> ExecuteIPMICommand(const std::string& cmd);
     ResponseHeader ParseResponseHeader(const std::vector<std::string>& hexBytes);
     IPMIEvent ParseSingleEvent(const std::vector<std::string>& hexBytes, size_t startPos);

@@ -239,4 +239,30 @@ std::vector<std::string> SplitString(const std::string& str, const std::string& 
     }
     return result;
 }
+
+std::string uint32_to_hex_string(uint32_t num)
+{
+    std::ostringstream oss;
+    int length = 8;
+    oss << std::uppercase;
+    oss << "0x";
+    oss << std::setw(length) << std::setfill('0') << std::hex << num;
+    return oss.str();
+}
+
+std::string unit32_to_local_time(uint32_t timestamp)
+{
+    time_t t = static_cast<time_t>(timestamp);
+
+    struct tm* local_tm = localtime(&t);
+    if (local_tm == nullptr) {
+        BMC_LOG_WARNING << "prase timestamp error, value:" << timestamp;
+        return "";
+    }
+
+    char time_buf[64] = {0};
+    strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", local_tm);
+
+    return std::string(time_buf);
+}
 }
