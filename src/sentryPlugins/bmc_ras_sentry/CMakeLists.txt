@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 3.12)
-project(bmc_block_io)
+project(bmc_ras_sentry)
 
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -20,7 +20,7 @@ link_directories(
 set(SOURCE src/main.cpp
             src/logger.cpp
             src/common.cpp
-            src/cbmcblockio.cpp)
+            src/cbmcrassentry.cpp)
 
-add_executable(bmc_block_io ${SOURCE})
-target_link_libraries(bmc_block_io PRIVATE xalarm pthread json-c)
+add_executable(bmc_ras_sentry ${SOURCE})
+target_link_libraries(bmc_ras_sentry PRIVATE xalarm pthread json-c)

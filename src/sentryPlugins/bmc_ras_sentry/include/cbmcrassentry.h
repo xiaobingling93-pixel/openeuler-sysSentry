@@ -1,12 +1,12 @@
 /*
  * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
- * bmc_block_io is licensed under Mulan PSL v2.
+ * bmc_ras_sentry is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * Author: hewanhan@h-partners.com
  */
 
-#ifndef _BMC_BLOCK_IO_H_
-#define _BMC_BLOCK_IO_H_
+#ifndef _BMC_RAS_SENTRY_H_
+#define _BMC_RAS_SENTRY_H_
 
 #include <atomic>
 #include <thread>
@@ -17,7 +17,7 @@
 #include <set>
 #include <condition_variable>
 
-namespace BMCBlockIoPlu {
+namespace BMCRasSentryPlu {
 
 struct ResponseHeader {
     uint16_t totalEvents;
@@ -34,10 +34,10 @@ struct IPMIEvent {
     bool valid;
 };
 
-class CBMCBlockIo {
+class CBMCRasSentry {
 public:
-    CBMCBlockIo();
-    ~CBMCBlockIo();
+    CBMCRasSentry();
+    ~CBMCRasSentry();
     void Start();
     void Stop();
     void SetPatrolInterval(int seconds);

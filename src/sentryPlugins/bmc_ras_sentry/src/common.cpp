@@ -1,6 +1,6 @@
 /*
  * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
- * bmc_block_io is licensed under Mulan PSL v2.
+ * bmc_ras_sentry is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * Author: hewanhan@h-partners.com
  */
@@ -16,7 +16,7 @@
 #include <unordered_map>
 #include <string>
 
-namespace BMCBlockIoPlu {
+namespace BMCRasSentryPlu {
 
 std::string Trim(const std::string& str)
 {

@@ -29,7 +29,7 @@ PKGVEREGG := syssentry-$(VERSION)-py$(PYTHON_VERSION).egg-info
 
 ARCH := $(shell uname -m)
 
-all: lib ebpf hbm_online_repair sentry_msg_monitor bmc_block_io soc_ring_sentry
+all: lib ebpf hbm_online_repair sentry_msg_monitor bmc_ras_sentry soc_ring_sentry
 
 lib:libxalarm log
 
@@ -52,8 +52,8 @@ hbm_online_repair:
 sentry_msg_monitor: lib
 	cd $(CURSRCDIR)/sentryPlugins/sentry_msg_monitor/ && make
 
-bmc_block_io: lib
-	cd $(CURSRCDIR)/sentryPlugins/bmc_block_io/ && sh build.sh
+bmc_ras_sentry: lib
+	cd $(CURSRCDIR)/sentryPlugins/bmc_ras_sentry/ && sh build.sh
 
 soc_ring_sentry: lib
 	cd $(CURSRCDIR)/sentryPlugins/soc_ring_sentry/ && make
@@ -157,10 +157,10 @@ ifeq ($(ARCH), aarch64)
 	install -m 600 $(CURCONFIGDIR)/task_scripts/sentry_msg_monitor.sh $(ETCDIR)/sysSentry/task_scripts/
 endif
 
-	# bmc_block_io
-	install -m 550 $(CURSRCDIR)/sentryPlugins/bmc_block_io/output/bmc_block_io $(BINDIR)
-	install -m 600 $(CURCONFIGDIR)/plugins/bmc_block_io.ini  $(ETCDIR)/sysSentry/plugins/
-	install -m 600 $(CURCONFIGDIR)/tasks/bmc_block_io.mod $(ETCDIR)/sysSentry/tasks/
+	# bmc_ras_sentry
+	install -m 550 $(CURSRCDIR)/sentryPlugins/bmc_ras_sentry/output/bmc_ras_sentry $(BINDIR)
+	install -m 600 $(CURCONFIGDIR)/plugins/bmc_ras_sentry.ini  $(ETCDIR)/sysSentry/plugins/
+	install -m 600 $(CURCONFIGDIR)/tasks/bmc_ras_sentry.mod $(ETCDIR)/sysSentry/tasks/
 
 	# pysentry_notify
 	install -m 644 src/libsentry/python/pySentryNotify/sentry_notify.py $(PYDIR)/xalarm
@@ -193,7 +193,7 @@ smm_clean:
 	cd $(CURSRCDIR)/sentryPlugins/sentry_msg_monitor && make clean
 
 bmc_clean:
-	cd $(CURSRCDIR)/sentryPlugins/bmc_block_io && sh build.sh clean
+	cd $(CURSRCDIR)/sentryPlugins/bmc_ras_sentry && sh build.sh clean
 
 srs_clean:
 	cd $(CURSRCDIR)/sentryPlugins/soc_ring_sentry && make clean
@@ -213,7 +213,7 @@ uninstall:
 	rm -rf $(BINDIR)/hbm_online_repair
 	rm -rf $(BINDIR)/soc_ring_sentry
 	rm -rf $(BINDIR)/sentry_msg_monitor
-	rm -rf $(BINDIR)/bmc_block_io
+	rm -rf $(BINDIR)/bmc_ras_sentry
 	rm -rf $(BINDIR)/ebpf_collector
 	rm -rf $(LIBINSTALLDIR)/libxalarm.so
 	rm -rf $(INCLUDEDIR)/xalarm

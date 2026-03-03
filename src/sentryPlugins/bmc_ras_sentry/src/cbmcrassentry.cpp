@@ -1,11 +1,11 @@
 /*
  * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
- * bmc_block_io is licensed under Mulan PSL v2.
+ * bmc_ras_sentry is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * Author: hewanhan@h-partners.com
  */
 
-#include "cbmcblockio.h"
+#include "cbmcrassentry.h"
 #include <string>
 #include <chrono>
 #include <cstdint>
@@ -20,13 +20,13 @@ extern "C" {
 #include "configure.h"
 #include "logger.h"
 
-namespace BMCBlockIoPlu {
+namespace BMCRasSentryPlu {
 
 const int RESP_HEADER_SIZE = 7;
 const int EVENT_SIZE = 15;
 const uint32_t ALARM_OCCUR_CODE = 0x02000039;
 const uint32_t ALARM_CLEAR_CODE = 0x0200003A;
-const std::string BMC_TASK_NAME = "bmc_block_io";
+const std::string BMC_TASK_NAME = "bmc_ras_sentry";
 const std::string GET_BMCIP_CMD = "ipmitool lan print";
 const std::string IPMI_KEY_IP_ADDR = "IP Address";
 const std::string MSG_BMCIP_EMPTY = "ipmitool get bmc ip failed.";
@@ -42,7 +42,7 @@ const std::string JSON_KEY_DETAILS = "details";
 const std::string MOD_SECTION_COMMON = "common";
 const std::string MOD_COMMON_ALARM_ID = "alarm_id";
 
-CBMCBlockIo::CBMCBlockIo() :
+CBMCRasSentry::CBMCRasSentry() :
     m_running(false),
     m_patrolSeconds(BMCPLU_PATROL_DEFAULT)
 {
@@ -61,11 +61,11 @@ CBMCBlockIo::CBMCBlockIo() :
     }
 }
 
-CBMCBlockIo::~CBMCBlockIo()
+CBMCRasSentry::~CBMCRasSentry()
 {
 }
 
-void CBMCBlockIo::Start()
+void CBMCRasSentry::Start()
 {
     if (m_running) {
         return;
@@ -78,11 +78,11 @@ void CBMCBlockIo::Start()
         return;
     }
     m_running = true;
-    m_worker = std::thread(&CBMCBlockIo::SentryWorker, this);
-    BMC_LOG_INFO << "BMC block io Start.";
+    m_worker = std::thread(&CBMCRasSentry::SentryWorker, this);
+    BMC_LOG_INFO << "BMC ras sentry Start.";
 }
 
-void CBMCBlockIo::Stop()
+void CBMCRasSentry::Stop()
 {
     {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -93,20 +93,20 @@ void CBMCBlockIo::Stop()
     if (m_worker.joinable()) {
         m_worker.join();
     }
-    BMC_LOG_INFO <<"BMC block io Stop.";
+    BMC_LOG_INFO <<"BMC ras sentry Stop.";
 }
 
-void CBMCBlockIo::SetPatrolInterval(int seconds)
+void CBMCRasSentry::SetPatrolInterval(int seconds)
 {
     m_patrolSeconds = seconds;
 }
 
-bool CBMCBlockIo::IsRunning()
+bool CBMCRasSentry::IsRunning()
 {
     return m_running;
 }
 
-void CBMCBlockIo::SentryWorker()
+void CBMCRasSentry::SentryWorker()
 {
     int ret = BMCPLU_SUCCESS;
     while (m_running) {
@@ -130,11 +130,11 @@ void CBMCBlockIo::SentryWorker()
         ReportResult(RESULT_LEVEL_FAIL, MSG_BMC_QUERY_FAIL);
     }
     m_running = false;
-    BMC_LOG_INFO << "BMC block io SentryWorker exit.";
+    BMC_LOG_INFO << "BMC ras sentry SentryWorker exit.";
     return;
 }
 
-void CBMCBlockIo::GetBMCIp()
+void CBMCRasSentry::GetBMCIp()
 {
     std::vector<std::string> result;
     if (ExecCommand(GET_BMCIP_CMD, result)) {
@@ -185,7 +185,7 @@ db 07 00 03 00 03 00 39 00 00 02 2f ab 91 68 00 02 04 00 00 00 00
 39 00 00 02 2e ab 91 68 00 02 02 00 00 00 00 39 00 00 02 2e ab 91
 68 00 02 01 00 00 00 00
     */
-int CBMCBlockIo::QueryEvents()
+int CBMCRasSentry::QueryEvents()
 {
     uint16_t currentIndex = 0;
     int ret = BMCPLU_SUCCESS;
@@ -240,7 +240,7 @@ int CBMCBlockIo::QueryEvents()
     return ret;
 }
 
-std::string CBMCBlockIo::BuildIPMICommand(uint16_t startIndex)
+std::string CBMCRasSentry::BuildIPMICommand(uint16_t startIndex)
 {
     uint8_t indexHigh = static_cast<uint8_t>((startIndex >> 8) & 0xff);
     uint8_t indexLow = static_cast<uint8_t>(startIndex & 0xff);
@@ -252,7 +252,7 @@ std::string CBMCBlockIo::BuildIPMICommand(uint16_t startIndex)
     return cmdStream.str();
 }
 
-std::vector<std::string> CBMCBlockIo::ExecuteIPMICommand(const std::string& cmd)
+std::vector<std::string> CBMCRasSentry::ExecuteIPMICommand(const std::string& cmd)
 {
     BMC_LOG_DEBUG << "IPMI event query command: " << cmd;
 
@@ -276,7 +276,7 @@ std::vector<std::string> CBMCBlockIo::ExecuteIPMICommand(const std::string& cmd)
     return SplitString(responseStream.str(), " ");
 }
 
-ResponseHeader CBMCBlockIo::ParseResponseHeader(const std::vector<std::string>& hexBytes)
+ResponseHeader CBMCRasSentry::ParseResponseHeader(const std::vector<std::string>& hexBytes)
 {
     ResponseHeader header = {0, 0, false};
 
@@ -316,7 +316,7 @@ ResponseHeader CBMCBlockIo::ParseResponseHeader(const std::vector<std::string>& 
     return header;
 }
 
-IPMIEvent CBMCBlockIo::ParseSingleEvent(const std::vector<std::string>& hexBytes, size_t startPos)
+IPMIEvent CBMCRasSentry::ParseSingleEvent(const std::vector<std::string>& hexBytes, size_t startPos)
 {
     IPMIEvent event = {0, 0, 0, 0, 0, false};
     char* endPtr = nullptr;
@@ -366,7 +366,7 @@ IPMIEvent CBMCBlockIo::ParseSingleEvent(const std::vector<std::string>& hexBytes
     return event;
 }
 
-void CBMCBlockIo::ProcessEvents(const std::vector<std::string>& hexBytes, uint8_t eventCount)
+void CBMCRasSentry::ProcessEvents(const std::vector<std::string>& hexBytes, uint8_t eventCount)
 {
     for (int i = 0; i < eventCount; ++i) {
         size_t startPos = RESP_HEADER_SIZE + i * EVENT_SIZE;
@@ -381,7 +381,7 @@ void CBMCBlockIo::ProcessEvents(const std::vector<std::string>& hexBytes, uint8_
     return;
 }
 
-void CBMCBlockIo::ReportAlarm(const IPMIEvent& event)
+void CBMCRasSentry::ReportAlarm(const IPMIEvent& event)
 {
     uint8_t ucAlarmLevel = MINOR_ALM;
     uint8_t ucAlarmType = 0;
@@ -416,7 +416,7 @@ void CBMCBlockIo::ReportAlarm(const IPMIEvent& event)
     return;
 }
 
-void CBMCBlockIo::ReportResult(int resultLevel, const std::string& msg)
+void CBMCRasSentry::ReportResult(int resultLevel, const std::string& msg)
 {
     RESULT_LEVEL level = static_cast<RESULT_LEVEL>(resultLevel);
     json_object* jObject = json_object_new_object();

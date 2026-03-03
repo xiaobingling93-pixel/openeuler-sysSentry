@@ -1,6 +1,6 @@
 /*
  * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
- * bmc_block_io is licensed under Mulan PSL v2.
+ * bmc_ras_sentry is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * Author: hewanhan@h-partners.com
  */
@@ -15,7 +15,7 @@
 #include <sstream>
 #include <sys/types.h>
 
-namespace BMCBlockIoPlu {
+namespace BMCRasSentryPlu {
 
 class Logger {
 public:
@@ -82,10 +82,10 @@ private:
     std::ostringstream m_stream;
 };
 
-#define BMC_LOG_DEBUG          BMCBlockIoPlu::LogStream(BMCBlockIoPlu::Logger::Level::Debug, __FILE__, __LINE__)
-#define BMC_LOG_INFO           BMCBlockIoPlu::LogStream(BMCBlockIoPlu::Logger::Level::Info, __FILE__, __LINE__)
-#define BMC_LOG_WARNING        BMCBlockIoPlu::LogStream(BMCBlockIoPlu::Logger::Level::Warning, __FILE__, __LINE__)
-#define BMC_LOG_ERROR          BMCBlockIoPlu::LogStream(BMCBlockIoPlu::Logger::Level::Error, __FILE__, __LINE__)
-#define BMC_LOG_CRITICAL       BMCBlockIoPlu::LogStream(BMCBlockIoPlu::Logger::Level::Critical, __FILE__, __LINE__)
+#define BMC_LOG_DEBUG          BMCRasSentryPlu::LogStream(BMCRasSentryPlu::Logger::Level::Debug, __FILE__, __LINE__)
+#define BMC_LOG_INFO           BMCRasSentryPlu::LogStream(BMCRasSentryPlu::Logger::Level::Info, __FILE__, __LINE__)
+#define BMC_LOG_WARNING        BMCRasSentryPlu::LogStream(BMCRasSentryPlu::Logger::Level::Warning, __FILE__, __LINE__)
+#define BMC_LOG_ERROR          BMCRasSentryPlu::LogStream(BMCRasSentryPlu::Logger::Level::Error, __FILE__, __LINE__)
+#define BMC_LOG_CRITICAL       BMCRasSentryPlu::LogStream(BMCRasSentryPlu::Logger::Level::Critical, __FILE__, __LINE__)
 }
 #endif
