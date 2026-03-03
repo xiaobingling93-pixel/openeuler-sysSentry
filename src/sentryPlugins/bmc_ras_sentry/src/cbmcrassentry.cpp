@@ -12,7 +12,7 @@
 #include <json-c/json.h>
 #include <sstream>
 #include <algorithm>
-#include <map>
+#include <regex>
 extern "C" {
 #include "register_xalarm.h"
 }
@@ -41,6 +41,8 @@ const std::string JSON_KEY_BLOCK_STACK = "block_stack";
 const std::string JSON_KEY_DETAILS = "details";
 const std::string MOD_SECTION_COMMON = "common";
 const std::string MOD_COMMON_ALARM_ID = "alarm_id";
+const std::string ALL_BMC_EVENTS = "0000";
+const std::string ALL_BMC_DEVICE_EVENTS = "00";
 
 CBMCRasSentry::CBMCRasSentry() :
     m_running(false),
@@ -59,10 +61,94 @@ CBMCRasSentry::CBMCRasSentry() :
             }
         }
     }
+    InitBMCEvents();
 }
 
 CBMCRasSentry::~CBMCRasSentry()
 {
+}
+
+void CBMCRasSentry::InitBMCEvents()
+{
+    m_BMCBlockEvents = {
+        {"0101", 0x02000009},
+        {"0102", 0x2B000003},
+        {"0103", 0x02000013},
+        {"0104", 0x02000015},
+        {"0105", 0x02000019},
+        {"0106", 0x02000027},
+        {"0107", 0x0200002D},
+        {"0108", 0x02000039},
+        {"0109", 0x0200003B},
+        {"0110", 0x0200003D},
+        {"0111", 0x02000041},
+        {"0112", 0x0200001D}
+    };
+
+    m_BMCEvents = {
+        {"01", m_BMCBlockEvents}
+    };
+}
+
+void CBMCRasSentry::OpenAllBMCEvents()
+{
+    for (const auto& bmc_event_it : m_BMCEvents) {
+        auto bmc_event = bmc_event_it.second;
+        for (const auto& bmc_event_info_it : bmc_event) {
+            m_BMCOpenEvents.emplace(bmc_event_info_it.second,
+                                    bmc_event_info_it.first);
+        }
+    }
+}
+
+void CBMCRasSentry::OpenBMCEvents(const std::string& event_id)
+{
+    const int head_length = 2;
+    auto it = m_BMCEvents.find(event_id.substr(0, head_length));
+    if (it == m_BMCEvents.end()) {
+        BMC_LOG_WARNING << "BMC Event Id not find, Event Id:" << event_id;
+        return;
+    }
+
+    auto bmc_event = it->second;
+    if (event_id.substr(head_length) == ALL_BMC_DEVICE_EVENTS) {
+        for (const auto& bmc_event_info_it : bmc_event) {
+            m_BMCOpenEvents.emplace(bmc_event_info_it.second,
+                                    bmc_event_info_it.first);
+        }
+    } else {
+        const auto bmc_event_info_it = bmc_event.find(event_id);
+        if (bmc_event_info_it == bmc_event.end()) {
+            BMC_LOG_WARNING << "BMC Event Id not find, Event Id:" << event_id;
+            return;
+        }
+        m_BMCOpenEvents.emplace(bmc_event_info_it->second,
+                                bmc_event_info_it->first);
+    }
+}
+
+void CBMCRasSentry::PraseBMCEvents(const std::string& bmc_events_value)
+{
+    const std::regex event_id_regex("^\\d{4}$");
+    auto result = SplitString(bmc_events_value, ",");
+
+    for (const auto& event_id : result) {
+        if (!std::regex_match(event_id, event_id_regex)) {
+            BMC_LOG_ERROR << "BMC Events prase error, value: " << bmc_events_value << ", event id: " << event_id;
+            return;
+        }
+    }
+
+    m_BMCOpenEvents.clear();
+
+    for (const auto& event_id : result) {
+        if (event_id == ALL_BMC_EVENTS) {
+            OpenAllBMCEvents();
+            return;
+        } else {
+            OpenBMCEvents(event_id);
+        }
+    }
 }
 
 void CBMCRasSentry::Start()

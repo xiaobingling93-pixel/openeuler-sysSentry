@@ -15,6 +15,7 @@
 #include <vector>
 #include <cctype>
 #include <set>
+#include <map>
 #include <condition_variable>
 
 namespace BMCRasSentryPlu {
@@ -34,6 +35,8 @@ struct IPMIEvent {
     bool valid;
 };
 
+using BMCEventMap = std::map<std::string, uint32_t>;
+
 class CBMCRasSentry {
 public:
     CBMCRasSentry();
@@ -42,7 +45,11 @@ public:
     void Stop();
     void SetPatrolInterval(int seconds);
     bool IsRunning();
+    void PraseBMCEvents(const std::string& bmc_events_value);
 private:
+    void InitBMCEvents();
+    void OpenAllBMCEvents();
+    void OpenBMCEvents(const std::string& event_id);
     void SentryWorker();
     void GetBMCIp();
     void ReportAlarm(const IPMIEvent& event);
@@ -62,6 +69,9 @@ private:
     std::string m_bmcIp;
     std::set<uint8_t> m_lastDeviceIds;
     std::set<uint8_t> m_currentDeviceIds;
+    std::map<uint32_t, std::string> m_BMCOpenEvents;
+    BMCEventMap m_BMCBlockEvents;
+    std::map<std::string, BMCEventMap> m_BMCEvents;
     int m_patrolSeconds;
     int m_alarmId;
 };

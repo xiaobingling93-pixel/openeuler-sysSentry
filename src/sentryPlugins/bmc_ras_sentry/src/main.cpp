@@ -65,6 +65,7 @@ int main(int argc, char* argv[])
     } else {
         BMCRasSentryPlu::Logger::GetInstance().SetLevel(config.logLevel);
         ras_sentry.SetPatrolInterval(config.patrolSeconds);
+        ras_sentry.PraseBMCEvents(config.BMCEvents);
     }
 
     std::thread configMonitor([&] {
@@ -102,6 +103,11 @@ int main(int argc, char* argv[])
                         config.patrolSeconds = newConfig.patrolSeconds;
                         BMC_LOG_INFO << "Patrol interval update to " << config.patrolSeconds;
                         ras_sentry.SetPatrolInterval(config.patrolSeconds);
+                    }
+                    if (newConfig.BMCEvents != config.BMCEvents) {
+                        config.BMCEvents = newConfig.BMCEvents;
+                        BMC_LOG_INFO << "BMC Events update to " << config.BMCEvents;
+                        ras_sentry.PraseBMCEvents(config.BMCEvents);
                     }
                 }
             }

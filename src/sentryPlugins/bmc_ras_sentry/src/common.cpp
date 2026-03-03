@@ -82,6 +82,11 @@ int ParseConfig(const std::string& path, PluConfig& config)
         return true;
     }};
 
+    configMap["bmc_events"] = {true, false, [&](const std::string& value) {
+        config.BMCEvents = value;
+        return true;
+    }};
+
     std::string line;
     while (std::getline(file, line)) {
         line = Trim(line);

@@ -22,6 +22,7 @@
 struct PluConfig {
     BMCRasSentryPlu::Logger::Level logLevel;
     int patrolSeconds;
+    std::string BMCEvents;
 };
 
 struct ConfigItem {
