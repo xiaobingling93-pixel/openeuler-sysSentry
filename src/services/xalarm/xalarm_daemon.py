@@ -25,7 +25,7 @@ from .xalarm_config import config_init, get_log_level
 from .xalarm_server import server_loop, SOCK_FILE
 
 ALARM_DIR = "/var/run/xalarm"
-ALARM_DIR_PERMISSION = 0o755
+ALARM_DIR_PERMISSION = 0o750
 ALARM_LOGFILE = '/var/log/sysSentry/xalarm.log'
 XALARMD_PID_FILE = "/var/run/xalarm/xalarmd.pid"
 PID_FILE_FLOCK = None

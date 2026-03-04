@@ -82,8 +82,8 @@ isentry:
 	install -d -m 700 $(VARLIB)/logrotate-syssentry
 	install -d -m 755 $(PYDIR)/syssentry
 	install -d -m 755 $(PYDIR)/syssentry/__pycache__
-	install -d -m 755 $(PYDIR)/xalarm
-	install -d -m 755 $(PYDIR)/xalarm/__pycache__
+	install -d -m 700 $(PYDIR)/xalarm
+	install -d -m 700 $(PYDIR)/xalarm/__pycache__
 	install -d -m 755 $(PYDIR)/sentryCollector
 	install -d -m 755 $(PYDIR)/sentryCollector/__pycache__
 	install -d -m 755 $(PYDIR)/$(PKGVEREGG)
@@ -169,10 +169,10 @@ endif
 	install -m 644 src/libsentry/python/pySentryCollector/collect_plugin.py $(PYDIR)/sentryCollector
 
 	# libxalarm
-	install -m 555 $(CURLIBDIR)/build/libxalarm/libxalarm.so $(LIBINSTALLDIR)
+	install -m 550 $(CURLIBDIR)/build/libxalarm/libxalarm.so $(LIBINSTALLDIR)
 
 	# libxalarm-devel
-	install -d -m 755 $(INCLUDEDIR)/xalarm
+	install -d -m 700 $(INCLUDEDIR)/xalarm
 	install -m 644 $(CURLIBDIR)/libxalarm/register_xalarm.h $(INCLUDEDIR)/xalarm/
 
 	# pyxalarm
