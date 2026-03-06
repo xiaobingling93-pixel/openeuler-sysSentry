@@ -1,6 +1,6 @@
 /*
  * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
- * bmc_block_io is licensed under Mulan PSL v2.
+ * bmc_ras_sentry is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * Author: hewanhan@h-partners.com
  */
@@ -16,7 +16,7 @@
 #include <unordered_map>
 #include <string>
 
-namespace BMCBlockIoPlu {
+namespace BMCRasSentryPlu {
 
 std::string Trim(const std::string& str)
 {
@@ -79,6 +79,11 @@ int ParseConfig(const std::string& path, PluConfig& config)
             return false;
         }
         config.patrolSeconds = num;
+        return true;
+    }};
+
+    configMap["bmc_events"] = {true, false, [&](const std::string& value) {
+        config.BMCEvents = value;
         return true;
     }};
 
@@ -233,5 +238,31 @@ std::vector<std::string> SplitString(const std::string& str, const std::string& 
         pos = split_pos + split.size();
     }
     return result;
+}
+
+std::string uint32_to_hex_string(uint32_t num)
+{
+    std::ostringstream oss;
+    int length = 8;
+    oss << std::uppercase;
+    oss << "0x";
+    oss << std::setw(length) << std::setfill('0') << std::hex << num;
+    return oss.str();
+}
+
+std::string unit32_to_local_time(uint32_t timestamp)
+{
+    time_t t = static_cast<time_t>(timestamp);
+
+    struct tm* local_tm = localtime(&t);
+    if (local_tm == nullptr) {
+        BMC_LOG_WARNING << "prase timestamp error, value:" << timestamp;
+        return "";
+    }
+
+    char time_buf[64] = {0};
+    strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", local_tm);
+
+    return std::string(time_buf);
 }
 }

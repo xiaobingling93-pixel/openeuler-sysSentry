@@ -1,12 +1,12 @@
 /*
  * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
- * bmc_block_io is licensed under Mulan PSL v2.
+ * bmc_ras_sentry is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * Author: hewanhan@h-partners.com
  */
 
-#ifndef _BMC_BLOCK_IO_H_
-#define _BMC_BLOCK_IO_H_
+#ifndef _BMC_RAS_SENTRY_H_
+#define _BMC_RAS_SENTRY_H_
 
 #include <atomic>
 #include <thread>
@@ -15,9 +15,10 @@
 #include <vector>
 #include <cctype>
 #include <set>
+#include <map>
 #include <condition_variable>
 
-namespace BMCBlockIoPlu {
+namespace BMCRasSentryPlu {
 
 struct ResponseHeader {
     uint16_t totalEvents;
@@ -34,21 +35,27 @@ struct IPMIEvent {
     bool valid;
 };
 
-class CBMCBlockIo {
+using BMCEventMap = std::map<std::string, uint32_t>;
+
+class CBMCRasSentry {
 public:
-    CBMCBlockIo();
-    ~CBMCBlockIo();
+    CBMCRasSentry();
+    ~CBMCRasSentry();
     void Start();
     void Stop();
     void SetPatrolInterval(int seconds);
     bool IsRunning();
+    void PraseBMCEvents(const std::string& bmc_events_value);
 private:
+    void InitBMCEvents();
+    void OpenAllBMCEvents();
+    void OpenBMCEvents(const std::string& event_id);
     void SentryWorker();
     void GetBMCIp();
     void ReportAlarm(const IPMIEvent& event);
     void ReportResult(int resultLevel, const std::string& msg);
     int QueryEvents();
-    std::string BuildIPMICommand(uint16_t startIndex);
+    std::string BuildIPMICommand(uint16_t startIndex, std::string severity, std::string subjectType);
     std::vector<std::string> ExecuteIPMICommand(const std::string& cmd);
     ResponseHeader ParseResponseHeader(const std::vector<std::string>& hexBytes);
     IPMIEvent ParseSingleEvent(const std::vector<std::string>& hexBytes, size_t startPos);
@@ -62,6 +69,9 @@ private:
     std::string m_bmcIp;
     std::set<uint8_t> m_lastDeviceIds;
     std::set<uint8_t> m_currentDeviceIds;
+    std::map<uint32_t, std::string> m_BMCOpenEvents;
+    BMCEventMap m_BMCBlockEvents;
+    std::map<std::string, BMCEventMap> m_BMCEvents;
     int m_patrolSeconds;
     int m_alarmId;
 };

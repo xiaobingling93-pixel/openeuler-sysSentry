@@ -1,6 +1,6 @@
 /*
  * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
- * bmc_block_io is licensed under Mulan PSL v2.
+ * bmc_ras_sentry is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * Author: hewanhan@h-partners.com
  */
@@ -15,7 +15,7 @@
 #include <sstream>
 #include "common.h"
 
-namespace BMCBlockIoPlu {
+namespace BMCRasSentryPlu {
 
 Logger& Logger::GetInstance()
 {

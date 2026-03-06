@@ -18,6 +18,8 @@ sections:
               href: ./avg_block_io_plugin.md
       - label: CPU故障巡检插件
         href: ./cpu_fault_inspection_plugin.md
+      - label: bmc ras告警上报插件
+        href: ./bmc_ras_sentry_plugin.md
 
   - label: 常见问题与解决方法
     href: ./question_and_answer.md
