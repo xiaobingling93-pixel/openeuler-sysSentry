@@ -167,7 +167,7 @@ static pthread_t create_thread(void)
     pthread_t t_id = ULONG_MAX;
 
     ret = pthread_create(&t_id, NULL, alarm_recv, NULL);
-    if (ret < 0) {
+    if (ret != 0) {
         printf("create_thread: pthread_create error ret:%d\n", ret);
         t_id = ULONG_MAX;
     }
