@@ -6,7 +6,7 @@ openEuler 当前版本
 
 ## 环境准备
 
-- 安装openEuler 当前版本对应的系统，安装方法参考 《[安装指南](https://docs.openeuler.openatom.cn/zh/docs/24.03_LTS_SP2/server/installation_upgrade/installation/installation_on_servers.html)》。
+- 安装openEuler 当前版本对应的系统，安装方法参考 《[安装指南](https://docs.openeuler.openatom.cn/zh/docs/24.03_LTS_SP3/server/installation_upgrade/installation/installation_guide.html)》。
 
 - 安装sysSentry需要使用root权限。
 
