@@ -683,18 +683,19 @@ int xalarm_register_event(struct alarm_register **register_info, struct alarm_su
     return 0;
 }
 
-void xalarm_unregister_event(struct alarm_register *register_info)  
+void xalarm_unregister_event(struct alarm_register **register_info)
 {
-    if (register_info == NULL) {
+    if (register_info == NULL || *register_info == NULL) {
         return;
     }
     // close client fd socket connection resource
-    if (register_info->register_fd != -1) {
-        (void)close(register_info->register_fd);
-        register_info->register_fd = -1;
+    if ((*register_info)->register_fd != -1) {
+        (void)close((*register_info)->register_fd);
+        (*register_info)->register_fd = -1;
     }
 
-    free(register_info);
+    free(*register_info);
+    *register_info = NULL;
 }
 
 int xalarm_get_event(struct alarm_msg* msg, struct alarm_register *register_info)
@@ -760,17 +761,19 @@ int xalarm_get_event(struct alarm_msg* msg, struct alarm_register *register_info
     }
 }
 
-int xalarm_report_event(unsigned short usAlarmId, char *pucParas)
+int xalarm_report_event(unsigned short usAlarmId, char *pucParas, size_t len)
 {
     int ret, fd;
     struct alarm_info info;
     struct sockaddr_un alarm_addr;
 
     if (usAlarmId < MIN_ALARM_ID || usAlarmId > MAX_ALARM_ID) {
+        fprintf(stderr, "%s: invalid alarm id", __func__);
         return -EINVAL;
     }
 
-    if (pucParas == NULL || (int)strlen(pucParas) > MAX_PARAS_LEN) {
+    if (pucParas == NULL || strlen(pucParas) != len || len > MAX_PARAS_LEN) {
+        fprintf(stderr, "%s: invalid report msg or len", __func__);
         return -EINVAL;
     }
 
@@ -779,8 +782,12 @@ int xalarm_report_event(unsigned short usAlarmId, char *pucParas)
     info.ucAlarmLevel = MINOR_ALM;
     info.ucAlarmType = ALARM_TYPE_OCCUR;
     gettimeofday(&info.AlarmTime, NULL);
-    strncpy((char *)info.pucParas, (char *)pucParas, MAX_PARAS_LEN - 1);
 
+    ret = snprintf(info.pucParas, sizeof(info.pucParas), "%s", pucParas);
+    if (ret < 0 || ret >= sizeof(info.pucParas)) {
+        fprintf(stderr, "%s: snprintf failed\n", __func__);
+        return -EINVAL;
+    }
 
     fd = socket(AF_UNIX, SOCK_DGRAM, 0);
     if (fd < 0) {
