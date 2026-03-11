@@ -23,10 +23,8 @@ import json
 CTL_SOCKET_PATH = "/var/run/sysSentry/control.sock"
 MAX_PARAM_LENGTH = 256
 
-MAX_DIE_NUM = 2
-MAX_UVB_CNA_STR_LEN = 22
+
 MAX_URMA_EID_LENGTH = 39
-MAX_NODES = 32
 MIN_PANIC_TIMEOUT_MS = 0
 MAX_PANIC_TIMEOUT_MS = 3600000
 MIN_KERNEL_REBOOT_TIMEOUT_MS = 0
@@ -38,79 +36,6 @@ RESULT_MSG_DATA_LEN = 4
 CTL_MSG_LEN_LEN = 3
 ALARM_MSG_DATA_LEN = 6
 DEFAULT_ALARM_TIME_RANGE = 10
-
-def write_proc_file(proc_dir, proc_name, proc_value):
-    """
-    Don't use 'shell=True' for subprocess.run/subprocess.Popen, it's not safe. However, if 'shell=true'
-    is not set, it is difficult to modify the proc file for subprocess.run/subprocess.Popen.
-    """
-    exit_code = 0
-    try:
-        with open("/proc/%s/%s" % (proc_dir, proc_name), mode="w") as f:
-            f.write(str(proc_value) + "\n")
-    except PermissionError as e:
-        exit_code = -e.errno
-        print("sentryctl: error: set %s failed for %s, the user does not have the permission!" % (proc_dir, proc_name))
-    except FileNotFoundError as e:
-        exit_code = -e.errno
-        print("sentryctl: error: set %s failed for %s, the proc file does not exist!" % (proc_dir, proc_name))
-    except Exception as e:
-        exit_code = getattr(e, 'errno', -1)
-        exit_code = -exit_code if exit_code > 0 else -1
-        print("sentryctl: error: set %s failed for %s" % (proc_dir, proc_name))
-    finally:
-        return exit_code
-
-def set_sentry_reporter_proc(proc_name, proc_value):
-    return write_proc_file("sentry_reporter", proc_name, proc_value)
-
-def set_remote_reporter_proc(proc_name, proc_value):
-    return write_proc_file("sentry_remote_reporter", proc_name, proc_value)
-
-def set_urma_heartbeat(proc_value):
-    return write_proc_file("sentry_urma_comm", "heartbeat", proc_value)
-
-def set_uvb_proc(server_cna_str):
-    if len(server_cna_str.strip()) == 0:
-        print("Invalid args for server_cna")
-        sys.exit(-1)
-    server_cna_list = server_cna_str.strip().split(";")
-    if len(server_cna_list) > MAX_NODES:
-        print("Exceeded the maximum number (%d) of nodes supported." % MAX_NODES)
-        sys.exit(-1)
-    for cna in server_cna_list:
-        if len(cna.strip()) == 0:
-            print("Find invalid cna (%s) for server_cna" % cna)
-            sys.exit(-1)
-        if len(cna.strip()) > MAX_UVB_CNA_STR_LEN:
-            print("Invalid cna (%s) for server_cna" % cna)
-            sys.exit(-1)
-    server_cna_string =";".join(server_cna_list)
-    return write_proc_file("sentry_uvb_comm", "server_cna", server_cna_string)
-
-def set_urma_proc(server_eid, client_jetty_id):
-    if len(server_eid.strip()) == 0:
-        print("Invalid args for server_eid, server_eid is empty string")
-        sys.exit(-1)
-    if client_jetty_id < MIN_CLIENT_JETTY_ID or client_jetty_id > MAX_CLIENT_JETTY_ID:
-        print("Invalid args for client_jetty_id")
-        sys.exit(-1)
-
-    server_eid_list = server_eid.strip().split(";")
-    if len(server_eid_list) > MAX_DIE_NUM:
-        print("Invalid args for server_eid, server_eid contains an extra semicolon.")
-        sys.exit(-1)
-    for server_eid_i in server_eid_list:
-        if len(server_eid_i) == 0:
-            print("Invalid args for server_eid, server_eid is empty string")
-            sys.exit(-1)
-        server_eid_list_i = server_eid_i.split(",")
-        for eid_i in server_eid_list_i:
-            if len(eid_i.strip()) != MAX_URMA_EID_LENGTH:
-                print("Invalid args for server_eid, the length of the eid ({}) does not equal {}.".format(eid_i, MAX_URMA_EID_LENGTH))
-                sys.exit(-1)
-    write_urma_info = " ".join((server_eid, str(client_jetty_id)))
-    return write_proc_file("sentry_urma_comm", "client_info", write_urma_info)
 
 def status_output_format(res_data):
     """format output"""
@@ -147,6 +72,8 @@ def res_output_handle(res_struct, req_type):
          result_output_format(res_struct['data'])
     elif res_struct['ret'] == "failed":
         print(res_struct['data'])
+        if req_type == 'set':
+            sys.exit(-1)
 
 
 def res_msg_serial(res_msg):
@@ -251,7 +178,7 @@ if __name__ == '__main__':
         ],
     }
     parser_set = subparsers.add_parser('set', help='set plugins params')
-    parsers_set_plugin_param = parser_set.add_subparsers(dest="set_task")
+    parsers_set_plugin_param = parser_set.add_subparsers(dest="set_ko_name")
     for plugin_name, args_info in set_cmd_args_plugins_info.items():
         parser_set_plugin_param = parsers_set_plugin_param.add_parser(plugin_name, help="set task args for %s" % plugin_name)
         for arg in args_info:
@@ -282,67 +209,16 @@ if __name__ == '__main__':
     elif client_args.cmd_type == 'reload':
         req_msg_struct = {"type": "reload", "data": client_args.task_name}
     elif client_args.cmd_type == 'set':
-        ret_code = 0
-        if client_args.set_task == "sentry_remote_reporter":
-            if client_args.cna != None:
-                if client_args.cna < 0:
-                    print("cna should be a number not less than 0.")
-                    ret_code = -1
-                else:
-                    ret_code += set_remote_reporter_proc("cna", client_args.cna)
-            if client_args.eid != None:
-                num_of_semicolons = client_args.eid.count(";")
-                if num_of_semicolons > 1:
-                    print("invalid value for extraneous semicolon.")
-                    sys.exit(-1)
-                eid_list = client_args.eid.split(";")
-                for eid_i in eid_list:
-                    if len(eid_i) != MAX_URMA_EID_LENGTH:
-                        print("The length of eid must be {}, but the detected input length is {}.".format(MAX_URMA_EID_LENGTH, len(eid_i)))
-                        sys.exit(-1)
-                ret_code += set_remote_reporter_proc("eid", client_args.eid)
-            if client_args.uvb_comm != None or client_args.urma_comm != None:
-                if client_args.urma_comm == "on":
-                    ret_code += set_remote_reporter_proc("urma_comm", client_args.urma_comm)
-                if client_args.uvb_comm == "on":
-                    ret_code += set_remote_reporter_proc("uvb_comm", client_args.uvb_comm)
-                if client_args.urma_comm == "off":
-                    ret_code += set_remote_reporter_proc("urma_comm", client_args.urma_comm)
-                if client_args.uvb_comm == "off":
-                    ret_code += set_remote_reporter_proc("uvb_comm", client_args.uvb_comm)
-            if client_args.panic != None:
-                ret_code += set_remote_reporter_proc("panic", client_args.panic)
-            if client_args.panic_timeout_ms != None:
-                ret_code += set_remote_reporter_proc("panic_timeout", client_args.panic_timeout_ms)
-            if client_args.kernel_reboot != None:
-                ret_code += set_remote_reporter_proc("kernel_reboot", client_args.kernel_reboot)
-            if client_args.kernel_reboot_timeout_ms != None:
-                ret_code += set_remote_reporter_proc("kernel_reboot_timeout", client_args.kernel_reboot_timeout_ms)
-        elif client_args.set_task == "sentry_urma_comm":
-            if client_args.server_eid != None and client_args.client_jetty_id:
-                ret_code += set_urma_proc(client_args.server_eid, client_args.client_jetty_id)
-            elif client_args.server_eid != None or client_args.client_jetty_id:
-                print("Options --server_eid and --client_jetty_id need to be used together")
-                ret_code += -1
-            if client_args.heartbeat != None:
-                ret_code += set_urma_heartbeat(client_args.heartbeat)
-        elif client_args.set_task == "sentry_uvb_comm":
-            ret_code += set_uvb_proc(client_args.server_cna)
-        elif client_args.set_task == "sentry_reporter":
-            if client_args.ub_mem_fault_with_kill != None:
-                ret_code += set_sentry_reporter_proc("ub_mem_fault_with_kill", client_args.ub_mem_fault_with_kill)
-            if client_args.ub_mem_fault != None:
-                ret_code += set_sentry_reporter_proc("ub_mem_fault", client_args.ub_mem_fault);
-            if client_args.power_off != None:
-                ret_code += set_sentry_reporter_proc("power_off", client_args.power_off);
-            if client_args.oom != None:
-                ret_code += set_sentry_reporter_proc("oom", client_args.oom);
-        sys.exit(ret_code)
+        params = vars(client_args)
+        req_msg_struct = {
+            "type": "set",
+            "data": params
+        }
     else:
         parser.print_help()
         sys.exit(-1)
 
-    if client_args.cmd_type != 'list' and len(client_args.task_name) > MAX_PARAM_LENGTH:
+    if client_args.cmd_type != 'list' and client_args.cmd_type != 'set' and len(client_args.task_name) > MAX_PARAM_LENGTH:
         print(f"sentryctl: task name is longer than {MAX_PARAM_LENGTH}")
         sys.exit(-1)
 

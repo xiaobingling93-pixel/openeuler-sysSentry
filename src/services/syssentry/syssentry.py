@@ -28,7 +28,15 @@ from .sentry_config import SentryConfig, get_log_level
 from .task_map import TasksMap
 from .global_values import SENTRY_RUN_DIR, CTL_SOCKET_PATH, SENTRY_RUN_DIR_PERM
 from .cron_process import period_tasks_handle
-from .callbacks import mod_list_show, task_start, task_get_status, task_stop, task_get_result, task_get_alarm
+from .callbacks import (
+    mod_list_show,
+    task_start,
+    task_get_status,
+    task_stop,
+    task_get_result,
+    task_get_alarm,
+    task_set
+)
 from .mod_status import get_task_by_pid, set_runtime_status
 from .mod_status import RUNNING_STATUS, EXITED_STATUS, NONZERO_EXITED_STATUS, FAILED_STATUS, WAITING_STATUS
 from .load_mods import load_tasks, reload_single_mod
@@ -73,7 +81,8 @@ type_func = {
     'get_status': task_get_status,
     'get_result': task_get_result,
     'get_alarm': task_get_alarm,
-    'reload': reload_single_mod
+    'reload': reload_single_mod,
+    'set': task_set
 }
 
 # func has no arg
