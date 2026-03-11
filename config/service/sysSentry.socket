@@ -1,0 +1,28 @@
+[Unit]
+Description=sysSentry daemon sockets
+Before=sysSentry.service
+
+[Socket]
+RuntimeDirectory=sysSentry
+# Control socket for sentryctl commands
+ListenStream=/run/sysSentry/control.sock
+# Result socket for plugin results
+ListenStream=/run/sysSentry/result.sock
+# Heartbeat socket for heartbeat detection
+ListenStream=/run/sysSentry/heartbeat.sock
+# CPU alarm socket
+ListenStream=/run/sysSentry/report.sock
+# BMC socket
+ListenStream=/run/sysSentry/bmc.sock
+
+# Socket file permissions: 0600 (rw-------), owned by root
+SocketMode=0600
+# Directory permissions: 0755 (rwxr-xr-x)
+RuntimeDirectoryMode=0755
+# Don't accept connections individually, service handles all connections
+Accept=no
+# remove socket files when sysSentry daemon socket stop
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target

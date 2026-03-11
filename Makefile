@@ -100,6 +100,7 @@ isentry:
 	
 	## 安装 systemd 服务文件
 	install -m 600 $(CURCONFIGDIR)/service/sysSentry.service $(SYSTEMDDIR)
+	install -m 600 $(CURCONFIGDIR)/service/sysSentry.socket $(SYSTEMDDIR)
 	install -m 600 $(CURCONFIGDIR)/service/xalarmd.service $(SYSTEMDDIR)
 	install -m 600 $(CURCONFIGDIR)/service/xalarmd.socket $(SYSTEMDDIR)
 	install -m 600 $(CURCONFIGDIR)/service/sentryCollector.service $(SYSTEMDDIR)
@@ -233,6 +234,7 @@ uninstall:
 	rm -rf $(PYDIR)/$(PKGVEREGG)
 	rm -rf $(PYDIR)/xalarm
 	rm -rf $(SYSTEMDDIR)/sysSentry.service
+	rm -rf $(SYSTEMDDIR)/sysSentry.socket
 	rm -rf $(SYSTEMDDIR)/xalarmd.service
 	rm -rf $(SYSTEMDDIR)/xalarmd.socket
 	rm -rf $(SYSTEMDDIR)/sentryCollector.service
@@ -251,7 +253,9 @@ test:
 startup:
 	systemctl daemon-reload
 	systemctl enable xalarmd.socket
+	systemctl enable sysSentry.socket
 	systemctl start xalarmd.socket
+	systemctl start sysSentry.socket
 	systemctl restart xalarmd
 	systemctl restart sysSentry
 	systemctl restart sentryCollector

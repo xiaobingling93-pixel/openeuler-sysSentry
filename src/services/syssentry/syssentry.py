@@ -26,7 +26,7 @@ import select
 from .sentry_config import SentryConfig, get_log_level
 
 from .task_map import TasksMap
-from .global_values import SENTRY_RUN_DIR, CTL_SOCKET_PATH, SENTRY_RUN_DIR_PERM
+from .global_values import SENTRY_RUN_DIR, SENTRY_RUN_DIR_PERM
 from .cron_process import period_tasks_handle
 from .callbacks import (
     mod_list_show,
@@ -40,8 +40,7 @@ from .callbacks import (
 from .mod_status import get_task_by_pid, set_runtime_status
 from .mod_status import RUNNING_STATUS, EXITED_STATUS, NONZERO_EXITED_STATUS, FAILED_STATUS, WAITING_STATUS
 from .load_mods import load_tasks, reload_single_mod
-from .heartbeat import (heartbeat_timeout_chk, heartbeat_fd_create,
-    heartbeat_recv, THB_SOCKET_PATH)
+from .heartbeat import (heartbeat_timeout_chk, heartbeat_recv)
 from .result import RESULT_MSG_HEAD_LEN, RESULT_MSG_MAGIC_LEN, RESULT_MAGIC
 from .result import RESULT_LEVEL_ERR_MSG_DICT, ResultLevel
 from .utils import get_current_time_string
@@ -106,6 +105,57 @@ CPU_ALARM_SOCKET_PATH = "/var/run/sysSentry/report.sock"
 BMC_SOCKET_PATH = "/var/run/sysSentry/bmc.sock"
 
 fd_list = []
+
+
+def get_syssentry_systemd_sockets():
+    """Get file descriptors from systemd socket activation using LISTEN_FDS"""
+    # sysSentry socket fds
+    global server_fd
+    global server_result_fd
+    global heartbeat_fd
+    global cpu_alarm_fd
+    global bmc_fd
+
+    listen_pid = int(os.environ.get('LISTEN_PID', '0'))
+    listen_fds = int(os.environ.get('LISTEN_FDS', '0'))
+    # we have at least 5 sockets
+    if listen_pid != os.getpid() or listen_fds < 5:
+        logging.error("fd/pid verify failed, systemd socket activation maybe not available or invalid")
+        logging.error("Please ensure sysSentry.socket is enabled and started")
+        logging.error("Run: systemctl enable sysSentry.socket && systemctl start sysSentry.socket")
+        return -1
+    try:
+        # File descriptors start from 3 (SD_LISTEN_FDS_START)
+        for fd_offset in range(listen_fds):
+            fd = 3 + fd_offset
+            test_sock = socket.fromfd(fd, socket.AF_UNIX, socket.SOCK_STREAM)
+            sock_type_val = test_sock.getsockopt(1, 3)
+            test_sock.close()
+            if sock_type_val == socket.SOCK_STREAM:
+                stream_sock = socket.fromfd(fd, socket.AF_UNIX, socket.SOCK_STREAM)
+                stream_sock.setblocking(False)
+                if stream_sock.getsockname() == "/run/sysSentry/control.sock":
+                    server_fd = stream_sock
+                elif stream_sock.getsockname() == "/run/sysSentry/result.sock":
+                    server_result_fd = stream_sock
+                elif stream_sock.getsockname() == "/run/sysSentry/heartbeat.sock":
+                    heartbeat_fd = stream_sock
+                elif stream_sock.getsockname() == "/run/sysSentry/report.sock":
+                    cpu_alarm_fd = stream_sock
+                elif stream_sock.getsockname() == "/run/sysSentry/bmc.sock":
+                    bmc_fd = stream_sock
+                else:
+                    logging.error("Found Unknown STREAM socket at FD %d (%s)", fd, stream_sock.getsockname())
+                    return -1
+                logging.info("Found STREAM socket at FD %d (%s)", fd, stream_sock.getsockname())
+            else:
+                logging.error("Unknown socket type %d at FD %d", sock_type_val, fd)
+                return -1
+    except (ValueError, AttributeError) as e:
+        logging.warning("Failed to parse LISTEN_FDS: %s", str(e))
+        return -1
+    return 0
+
 
 def msg_data_process(msg_data):
     """message data process"""
@@ -293,100 +343,6 @@ def server_recv(server_socket: socket.socket):
     return
 
 
-def server_fd_create():
-    """create server fd"""
-    if not os.path.exists(SENTRY_RUN_DIR):
-        logging.error("%s not exist, failed", SENTRY_RUN_DIR)
-        return None
-
-    try:
-        server_fd = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        server_fd.setblocking(False)
-        if os.path.exists(CTL_SOCKET_PATH):
-            os.remove(CTL_SOCKET_PATH)
-
-        server_fd.bind(CTL_SOCKET_PATH)
-        os.chmod(CTL_SOCKET_PATH, 0o600)
-        server_fd.listen(CTL_LISTEN_QUEUE_LEN)
-        logging.debug("%s bind and listen", CTL_SOCKET_PATH)
-    except socket.error:
-        logging.error("server fd create failed")
-        server_fd = None
-
-    return server_fd
-
-
-def cpu_alarm_fd_create():
-    """create heartbeat fd"""
-    if not os.path.exists(SENTRY_RUN_DIR):
-        logging.debug("%s not exist", SENTRY_RUN_DIR)
-        return None
-
-    try:
-        cpu_alarm_fd = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    except socket.error:
-        logging.error("cpu alarm fd create failed")
-        return None
-
-    cpu_alarm_fd.setblocking(False)
-    if os.path.exists(CPU_ALARM_SOCKET_PATH):
-        os.remove(CPU_ALARM_SOCKET_PATH)
-
-    try:
-        cpu_alarm_fd.bind(CPU_ALARM_SOCKET_PATH)
-    except OSError:
-        logging.error("cpu alarm fd bind failed")
-        cpu_alarm_fd.close()
-        return None
-
-    os.chmod(CPU_ALARM_SOCKET_PATH, 0o600)
-    try:
-        cpu_alarm_fd.listen(5)
-    except OSError:
-        logging.error("cpu alarm fd listen failed")
-        cpu_alarm_fd.close()
-        return None
-
-    logging.debug("%s bind and listen", CPU_ALARM_SOCKET_PATH)
-
-    return cpu_alarm_fd
-
-def bmc_fd_create():
-    """create bmc fd"""
-    if not os.path.exists(SENTRY_RUN_DIR):
-        logging.debug("%s not exist", SENTRY_RUN_DIR)
-        return None
-
-    try:
-        bmc_fd = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    except socket.error:
-        logging.error("bmc fd create failed")
-        return None
-
-    bmc_fd.setblocking(False)
-    if os.path.exists(BMC_SOCKET_PATH):
-        os.remove(BMC_SOCKET_PATH)
-
-    try:
-        bmc_fd.bind(BMC_SOCKET_PATH)
-    except OSError:
-        logging.error("bmc fd bind failed")
-        bmc_fd.close()
-        return None
-
-    os.chmod(BMC_SOCKET_PATH, 0o600)
-    try:
-        bmc_fd.listen(5)
-    except OSError:
-        logging.error("bmc fd listen failed")
-        bmc_fd.close()
-        return None
-
-    logging.debug("%s bind and listen", BMC_SOCKET_PATH)
-
-    return bmc_fd
-
-
 def server_result_recv(server_socket: socket.socket):
     """server result receive"""
     try:
@@ -437,28 +393,6 @@ def server_result_recv(server_socket: socket.socket):
     return
 
 
-def server_result_fd_create():
-    """create server result fd"""
-    if not os.path.exists(SENTRY_RUN_DIR):
-        logging.error("%s not exist, failed", SENTRY_RUN_DIR)
-        return None
-    try:
-        server_result_fd = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        server_result_fd.setblocking(False)
-        if os.path.exists(RESULT_SOCKET_PATH):
-            os.remove(RESULT_SOCKET_PATH)
-
-        server_result_fd.bind(RESULT_SOCKET_PATH)
-        os.chmod(RESULT_SOCKET_PATH, 0o600)
-        server_result_fd.listen(CTL_LISTEN_QUEUE_LEN)
-        logging.debug("%s bind and listen", RESULT_SOCKET_PATH)
-    except socket.error:
-        logging.error("server result fd create failed")
-        server_result_fd = None
-
-    return server_result_fd
-
-
 def close_all_fd():
     for fd in fd_list:
         fd.close()
@@ -467,37 +401,17 @@ def close_all_fd():
 def main_loop():
     """main loop"""
 
-    server_fd = server_fd_create()
-    if not server_fd:
-        close_all_fd()
+    # get sockets
+    ret = get_syssentry_systemd_sockets()
+    if ret != 0:
+        logging.error("get sysSentry sockets failed")
         return
+
     fd_list.append(server_fd)
-
-    server_result_fd = server_result_fd_create()
-    if not server_result_fd:
-        close_all_fd()
-        return
     fd_list.append(server_result_fd)
-
-    heartbeat_fd = heartbeat_fd_create()
-    if not heartbeat_fd:
-        close_all_fd()
-        return
     fd_list.append(heartbeat_fd)
-
-    if CPU_EXIST:
-        cpu_alarm_fd = cpu_alarm_fd_create()
-        if not cpu_alarm_fd:
-            close_all_fd()
-            return
-        fd_list.append(cpu_alarm_fd)
-
-    if BMC_EXIST:
-        bmc_fd = bmc_fd_create()
-        if not bmc_fd:
-            close_all_fd()
-            return
-        fd_list.append(bmc_fd)
+    fd_list.append(cpu_alarm_fd)
+    fd_list.append(bmc_fd)
 
     epoll_fd = select.epoll()
     for fd in fd_list:
@@ -552,20 +466,6 @@ def release_pidfile():
         os.unlink(SYSSENTRY_PID_FILE)
     except (IOError, FileNotFoundError):
         logging.error("Failed to release PID file lock")
-
-
-def remove_sock_file():
-    """remove sock file
-    """
-    for socket_path in (THB_SOCKET_PATH, CTL_SOCKET_PATH, CPU_ALARM_SOCKET_PATH, RESULT_SOCKET_PATH, BMC_SOCKET_PATH):
-        try:
-            os.unlink(socket_path)
-        except FileNotFoundError:
-            pass
-    try:
-        os.rmdir(SENTRY_RUN_DIR)
-    except Exception:
-        pass
 
 
 def sigchld_handler(signum, _f):
@@ -687,4 +587,3 @@ def main():
             xalarm_unregister(client_id)
         clean_child()
         release_pidfile()
-        remove_sock_file()

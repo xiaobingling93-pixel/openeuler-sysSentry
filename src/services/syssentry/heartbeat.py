@@ -135,39 +135,3 @@ def heartbeat_recv(heartbeat_socket: socket.socket):
     logging.info("task %s heartbeat upgrade success, current time is %d", task.name, cur_timestamp)
 
     client_socket.close()
-
-
-def heartbeat_fd_create():
-    """create heartbeat fd"""
-    if not os.path.exists(SENTRY_RUN_DIR):
-        logging.debug("%s not exist", SENTRY_RUN_DIR)
-        return None
-
-    try:
-        heartbeat_fd = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    except socket.error:
-        logging.error("heartbeat fd create failed")
-        return None
-
-    heartbeat_fd.setblocking(False)
-    if os.path.exists(THB_SOCKET_PATH):
-        os.remove(THB_SOCKET_PATH)
-
-    try:
-        heartbeat_fd.bind(THB_SOCKET_PATH)
-    except OSError:
-        logging.error("heartbeat fd bind failed")
-        heartbeat_fd.close()
-        return None
-
-    os.chmod(THB_SOCKET_PATH, 0o600)
-    try:
-        heartbeat_fd.listen(5)
-    except OSError:
-        logging.error("heartbeat fd listen failed")
-        heartbeat_fd.close()
-        return None
-
-    logging.debug("%s bind and listen", THB_SOCKET_PATH)
-
-    return heartbeat_fd

@@ -25,6 +25,7 @@ function pre_test() {
 }
 
 function do_test() {
+    systemctl start xalarmd.socket xalarmd.service
 
     sentryctl status test_sentryctl_exception 2>&1 | tee ${tmp_log} | cat
     expect_true "grep -E '(sentryctl: client_send_and_recv failed)' ${tmp_log}"
@@ -41,10 +42,11 @@ function do_test() {
     sentryctl list 2>&1 | tee ${tmp_log} | cat
     expect_true "grep -E '(sentryctl: client_send_and_recv failed)' ${tmp_log}"
 
-    syssentry &
+    systemctl start sysSentry.service
     pid1=$(ps -ef | grep syssentry | grep -v grep | awk '{print $2}')
 
-    syssentry &
+
+    systemctl start sysSentry.service
     pid2=$(ps -ef | grep syssentry | grep -v grep | awk '{print $2}')
 
     expect_eq $pid1 $pid2
@@ -70,11 +72,10 @@ function do_test() {
 }
 
 function post_test() {
-    while [[ -n "`ps aux|grep -w syssentry|grep -v grep`" ]]; do
-        kill -9 `pgrep -w syssentry`
-        kill -9 `pgrep -w test_task`
-        sleep 1
-    done
+    systemctl stop sysSentry.socket sysSentry.service
+    systemctl stop xalarmd.socket xalarmd.service
+    kill -9 `pgrep -w test_task`
+
     rm -rf ${tmp_log} test/sysSentry/test_task
     rm -rf /usr/bin/test_task /etc/sysSentry/tasks/test_sentryctl_exception.mod
 }

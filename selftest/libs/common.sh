@@ -18,7 +18,8 @@ function common_pre_test() {
     gcc test/sysSentry/test_task.c -o test/sysSentry/test_task
     cp test/sysSentry/test_task /usr/bin
 
-    syssentry &
+    systemctl start xalarmd.socket xalarmd.service
+    systemctl start sysSentry.socket sysSentry.service
     sleep 1
 }
 
