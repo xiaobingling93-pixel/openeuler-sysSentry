@@ -1,10 +1,10 @@
 # bmc ras告警上报插件
 
-用户可通过bmc ras告警上报插件获取bmc上各种ras告警信息，当插件检测到bmc ras告警时，会将结果上报给xalarmd服务。检测模式为定时轮询，每次轮询会上报当前产生的告警，不上报历史告警。用户可通过注册告警或get_alarm命令的方式查看告警结果（注册告警和get_alarm命令可参考《[安装和使用](./installation_and_usage.md)》）。
+用户可通过bmc ras告警上报插件获取bmc上各种ras告警信息，当插件检测到bmc ras告警时，会将结果上报给xalarmd服务。检测模式为定时轮询，每次轮询会上报当前产生的告警，不上报历史告警。用户可通过注册告警或get_alarm命令的方式查看告警结果（注册告警和get_alarm命令可参考《[安装和使用](https://docs.openeuler.openatom.cn/zh/docs/20.03_LTS_SP4/docs/sysSentry/%E5%AE%89%E8%A3%85%E5%92%8C%E4%BD%BF%E7%94%A8.html)》）。
 
 ## 硬件规格要求
 
-- 仅支持华为鲲鹏服务器
+- 仅支持鲲鹏服务器
 - bmc版本要求5.13.00.0及以上
 
 ## 安装插件
@@ -12,7 +12,7 @@
 ### 前置条件
 
 已安装sysSentry巡检插件，sentryCollector采集服务已配置io相关采集项（请参考《[安装和使用](./installation_and_usage.md)》进行配置）。
-硬盘raid场景下需要安装raid工具（目前仅支持华为raid工具hiraidadm《[hiraidadm工具使用指南](https://support.huawei.com/enterprise/zh/doc/EDOC1100048779/d802bccf)》，博通raid工具storcli64《[storcli64工具使用指南](https://support.huawei.com/enterprise/zh/doc/EDOC1100048779/596d0e24)》）。
+硬盘raid场景下需要安装raid工具（目前仅支持raid工具hiraidadm《[hiraidadm工具使用指南](https://support.huawei.com/enterprise/zh/doc/EDOC1100048779/d802bccf)》，raid工具storcli64《[storcli64工具使用指南](https://support.huawei.com/enterprise/zh/doc/EDOC1100048779/596d0e24)》）。
 
 ### 安装软件包
 
@@ -92,7 +92,7 @@ bmc_events=0101,0102
    sentryctl get_alarm bmc_ras_sentry -s 1 -d
    ```
 
-   sentryctl get_alarm 命令用法参考《[安装和使用](./installation_and_usage.md)》
+   sentryctl get_alarm 命令用法参考《[安装和使用](https://docs.openeuler.openatom.cn/zh/docs/20.03_LTS_SP4/docs/sysSentry/%E5%AE%89%E8%A3%85%E5%92%8C%E4%BD%BF%E7%94%A8.html)》
 
    示例：
 
@@ -101,16 +101,17 @@ bmc_events=0101,0102
         {
             "alarm_id": 1015,
             "alarm_type": "ALARM_TYPE_OCCUR",
-            "alarm_level": "MINOR_ALARM",
+            "alarm_level": "MINOR_ALM",
             "timestamp": "2026-03-05 09:55:31",
             "alarm_info": {
+                "alarm_source": "bcm_ras_sentry",
                 "id": "0101",
-                "bmc id": "0x02000009",
+                "bmc_id": "0x02000009",
                 "level": 1,
                 "time": "2026-03-02 11:25:44",
-                "disk info": {
-                    "physical disk": "01",
-                    "logical disk": "sda",
+                "disk_info": {
+                    "physical_disk": "034QVV10P8100491",
+                    "logical_disk": "sda",
                 }
             }
         }
@@ -123,7 +124,7 @@ bmc_events=0101,0102
    | --- | --- |
    | alarm_id | 用户上报告警的id，bmc ras告警上报插件的固定值为1015 |
    | alarm_type | 告警上报类型，bmc ras告警上报插件告警类型为ALARM_TYPE_OCCUR，代表告警产生|
-   | alarm_level | 告警等级，bmc ras告警上报插件告警等级为MINOR_ALARM，表示系统存在异常 |
+   | alarm_level | 告警等级，bmc ras告警上报插件告警等级为MINOR_ALM，表示系统存在异常 |
    | timestamp | 告警上报的时间 |
    | alarm_info | 告警详细内容，由bmc ras告警上报插件自定义 |
 
@@ -131,18 +132,19 @@ bmc_events=0101,0102
 
    | 字段 | 描述 |
    | --- | --- |
+   | alarm_source | 告警插件名称，bmc ras告警上报插件的固定值为bmc_ras_sentry |
    | id | bmc ras告警上报插件内部定义的告警事件id，（具体事件ID参考BMC告警事件字典） |
-   | bmc id | bmc上定义的告警id |
+   | bmc_id | bmc上定义的告警id |
    | level | 告警等级，1-轻微，2-正常，3-严重，4-紧急 |
    | time | 告警产生的时间 |
-   | disk info | 硬盘内容，硬盘类型告警特有字段 |
+   | disk_info | 硬盘内容，硬盘类型告警特有字段 |
 
    disk info各字段介绍：
 
    | 字段 | 描述 |
    | --- | --- |
-   | physical disk | 物理盘序号，表示实际硬盘的槽位号 |
-   | logical disk | 逻辑盘符，表示os上显示的硬盘盘符，如sda |
+   | physical_disk | 物理盘SN号，标识唯一物理盘 |
+   | logical_disk | 逻辑盘符，表示os上显示的硬盘盘符，如sda |
 
 4. 停止巡检
 

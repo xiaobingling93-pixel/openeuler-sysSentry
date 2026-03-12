@@ -15,6 +15,7 @@
 #include <sys/wait.h>
 #include <unordered_map>
 #include <string>
+#include <regex>
 
 namespace BMCRasSentryPlu {
 
@@ -190,7 +191,7 @@ int ExecCommand(const std::string& cmd, std::vector<std::string>& result)
     char buffer[512];
     result.clear();
     while (fgets(buffer, sizeof(buffer), pipe)) {
-        result.push_back(buffer);
+        result.push_back(Trim(buffer));
     }
 
     int status = pclose(pipe);
@@ -238,6 +239,131 @@ std::vector<std::string> SplitString(const std::string& str, const std::string& 
         pos = split_pos + split.size();
     }
     return result;
+}
+
+std::vector<std::string> SplitBySpace(const std::string& str)
+{
+    std::vector<std::string> result;
+    std::regex reg("\\s+");
+    std::sregex_token_iterator it(str.begin(), str.end(), reg, -1);
+    std::sregex_token_iterator end;
+    for(; it != end; ++it) {
+        std::string token = Trim(*it);
+        if (!token.empty()) {
+            result.push_back(token);
+        }
+    }
+
+    return result;
+}
+
+std::map<std::string, std::vector<std::string> > ParseStorcliCmd(const std::string& cmd)
+{
+    std::vector<std::string> cmdOut;
+    if(ExecCommand(cmd, cmdOut))
+        return {};
+
+    std::map<std::string, std::vector<std::string> > result;
+    int startLine = 0, endLine = 0;
+    for (int i = 0; i < cmdOut.size(); i++) {
+        if ((cmdOut[i].size() == 0 || cmdOut[i] != std::string(cmdOut[i].size(), '=')) && i != cmdOut.size() - 1)
+            continue;
+
+        std::string strKey;
+        if (i == cmdOut.size() - 1) {
+            endLine = i;
+        } else {
+            endLine = i - 2;
+        }
+
+        if (startLine < 0 || endLine > cmdOut.size() || startLine > endLine ) {
+            BMC_LOG_ERROR << "parse storcli message failed, cmd:" << cmd;
+            return {};
+        }
+
+        std::vector<std::string> storcliInfo(cmdOut.begin() + startLine, cmdOut.begin() + endLine + 1);
+	if (startLine == 0) {
+            strKey = "head message";
+        } else {
+            strKey = cmdOut[startLine - 2];
+        }
+        result.emplace(strKey, storcliInfo);
+        startLine = i + 1;
+    }
+
+    return result;
+}
+
+std::pair<std::map<std::string, uint8_t>, std::vector<std::vector<std::string> > > ParseCmdMap(
+    const std::vector<std::string>& inputVec)
+{
+    int i = 0;
+    std::map<std::string, uint8_t> mapHead;
+    std::vector<std::vector<std::string> > mapInfo;
+    for (const auto& line : inputVec) {
+        if (line.size() != 0 && line == std::string(line.size(), '-')) {
+            ++i;
+            if (i == 3)
+                break;
+            continue;
+        }
+
+        if (i == 1) {
+            auto head = SplitBySpace(line);
+            for (uint8_t j = 0; j < head.size(); j++) {
+                mapHead.emplace(head[j], j);
+            }
+        } else if (i == 2) {
+            auto value = SplitBySpace(line);
+            mapInfo.push_back(value);
+        }
+    }
+
+    return {mapHead, mapInfo};
+}
+
+std::map<std::string, std::string> ParseStorcliKeyToValue(const std::vector<std::string>& inputVec)
+{
+    std::map<std::string, std::string> result;
+    for (const auto& line : inputVec) {
+        size_t equal_pos = line.find('=');
+        if (equal_pos == std::string::npos) {
+            continue;
+        }
+
+        std::string key = Trim(line.substr(0, equal_pos));
+        std::string value = Trim(line.substr(equal_pos + 1));
+
+        result[key] = value;
+    }
+
+    return result;
+}
+
+json_object* ParseHiraidadmCmd(const std::string& cmd)
+{
+    std::vector<std::string> cmdOut;
+    if(ExecCommand(cmd, cmdOut))
+        return NULL;
+
+    std::string jsonStr;
+    for (const auto& line : cmdOut) {
+        jsonStr += line;
+    }
+
+    auto rootObj = json_tokener_parse(jsonStr.c_str());
+    if (rootObj == NULL) {
+        BMC_LOG_WARNING << "parse json value failed, cmd: " << cmd;
+        return NULL;
+    }
+
+    auto dataObj = json_object_object_get(rootObj, "CommandData");
+    if (!json_object_is_type(dataObj, json_type_object)) {
+        BMC_LOG_WARNING << "CommandData object can't be find, cmd: " << cmd;
+        return NULL;
+    }
+
+    return dataObj;
 }
 
 std::string uint32_to_hex_string(uint32_t num)
