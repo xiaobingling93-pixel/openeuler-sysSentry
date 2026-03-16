@@ -621,6 +621,65 @@ void CBMCRasSentry::GetBMCIp()
     return;
 }
 
+std::string CBMCRasSentry::BuildDiskSNIPMICommand(const IPMIEvent& event, uint8_t startIndex)
+{
+    const std::string ipmiReqHead = "ipmitool raw 0x30 0x93";
+    const std::string componentType = "0x02 0x00 0x00 0x80";
+    const std::string reqId = "0x90";
+    const std::string groupId = "0xFF";
+    const std::string parameterSelector = "0x00 0x00";
+    uint8_t deviceIdHigh = static_cast<uint8_t>((event.deviceId >> 8) & 0xff);
+    uint8_t deviceIdLow = static_cast<uint8_t>(event.deviceId & 0xff);
+    uint8_t length = 200;
+    uint16_t startLength = startIndex * length;
+    uint8_t startLengthHigh = static_cast<uint8_t>((startLength >> 8) & 0xff);
+    uint8_t startLengthLow = static_cast<uint8_t>(startLength & 0xff);
+    std::ostringstream cmdStream;
+    cmdStream << ipmiReqHead
+              << " " << IPMI_REQUEST_KUNPENG_ID
+              << " " << reqId
+              << " " << componentType
+              << " " << groupId
+              << " " << ByteToHex(deviceIdLow)
+              << " " << ByteToHex(deviceIdHigh)
+              << " " << parameterSelector
+              << " " << ByteToHex(startLengthLow)
+              << " " << ByteToHex(startLengthHigh)
+              << " " << ByteToHex(length);
+    return cmdStream.str();
+}
+
+std::string CBMCRasSentry::GetDiskSNByIPMI(const IPMIEvent& event)
+{
+    uint8_t startIndex = 0;
+    std::string diskSN;
+    
+    while (true) {
+        std::string cmd = BuildDiskSNIPMICommand(event, startIndex);
+        auto hexBytes = ExecuteIPMICommand(cmd);
+        if (hexBytes.empty() || hexBytes.size() < 4) {
+            BMC_LOG_ERROR << "get disk SN by IPMI failed, cmd:  " << cmd;
+            return "";
+        }
+
+        for (int i = 4; i < hexBytes.size(); i++) {
+            std::string asciiStr;
+            if (HexAsciiToChar(hexBytes[i], asciiStr)) {
+            	diskSN += asciiStr;
+            } else {
+                BMC_LOG_ERROR << "hex ascii to char failed, cmd: " << cmd;
+                return "";
+            }
+        }
+
+        if (hexBytes[3] == "00") {
+            break;
+        }
+        startIndex++;
+    }
+    return diskSN;
+}
+
 /***** ipml protocol *****/
 /*
 请求 字节顺序 含义
@@ -828,7 +887,7 @@ IPMIEvent CBMCRasSentry::ParseSingleEvent(const std::vector<std::string>& hexByt
         BMC_LOG_ERROR << "Invalid device ID byte: " << hexBytes[startPos + 10];
         return event;
     }
-    event.deviceId = static_cast<uint8_t>(deviceId);
+    event.deviceId = static_cast<uint16_t>(deviceId);
 
     event.valid = true;
     return event;
@@ -869,6 +928,25 @@ void CBMCRasSentry::ReportAlarm(const IPMIEvent& event)
         ucAlarmType = ALARM_TYPE_RECOVER;
     }
 
+    std::string diskSN = GetDiskSNByIPMI(event);
+    std::string blockNameStr = "";
+    if (diskSN == "") {
+        diskSN = std::to_string(event.deviceId);
+    } else {
+        for (const auto& diskSNToBlockName : m_diskSNToBlockNames) {
+            if (diskSNToBlockName.find(diskSN) != diskSNToBlockName.end()) {
+                auto blockNames = diskSNToBlockName.find(diskSN)->second;
+                for (const auto& blockName : blockNames) {
+                    blockNameStr += blockName + ", ";
+                }
+                if (blockNameStr.size() >= 2)
+                    blockNameStr.erase(blockNameStr.size() - 2);
+
+                break;
+            }
+        }
+    }
+
     json_object* jObject = json_object_new_object();
     json_object* diskInfo = json_object_new_object();
     std::string bmcId = uint32_to_hex_string(event.alarmTypeCode);
@@ -879,9 +957,8 @@ void CBMCRasSentry::ReportAlarm(const IPMIEvent& event)
     json_object_object_add(jObject, JSON_KEY_BMC_ID.c_str(), json_object_new_string(bmcId.c_str()));
     json_object_object_add(jObject, JSON_KEY_LEVEL.c_str(), json_object_new_int(event.severity));
     json_object_object_add(jObject, JSON_KEY_TIME.c_str(), json_object_new_string(time.c_str()));
-    json_object_object_add(disk_info, JSON_KEY_PHYSICAL_DISK.c_str(),
-                           json_object_new_string(std::to_string(event.deviceId).c_str()));
-    json_object_object_add(disk_info, JSON_KEY_LOGICAL_DISK.c_str(), json_object_new_string(""));
+    json_object_object_add(diskInfo, JSON_KEY_PHYSICAL_DISK.c_str(), json_object_new_string(diskSN.c_str()));
+    json_object_object_add(diskInfo, JSON_KEY_LOGICAL_DISK.c_str(), json_object_new_string(blockNameStr.c_str()));
     json_object_object_add(jObject, JSON_KEY_DISK_INFO.c_str(), diskInfo);
     const char *jData = json_object_to_json_string(jObject);
     int ret = xalarm_Report(m_alarmId, ucAlarmLevel, ucAlarmType, const_cast<char*>(jData));

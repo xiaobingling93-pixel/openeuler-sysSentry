@@ -41,6 +41,7 @@ std::map<std::string, std::map<std::string, std::string>> parseModConfig(const s
 std::string ExtractFileName(const std::string& path);
 int ExecCommand(const std::string& cmd, std::vector<std::string>& result);
 std::string ByteToHex(uint8_t byte);
+bool HexAsciiToChar(const std::string& hexStr, std::string& asciiStr);
 std::vector<std::string> SplitString(const std::string& str, const std::string& split);
 std::vector<std::string> SplitBySpace(const std::string& str);
 std::map<std::string, std::vector<std::string> > ParseStorcliCmd(const std::string& cmd);

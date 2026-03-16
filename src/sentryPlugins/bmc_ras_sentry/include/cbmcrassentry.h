@@ -31,7 +31,7 @@ struct IPMIEvent {
     uint32_t timestamp;
     uint8_t severity;
     uint8_t subjectType;
-    uint8_t deviceId;
+    uint16_t deviceId;
     bool valid;
 };
 
@@ -70,6 +70,8 @@ private:
     void OpenBMCEvents(const std::string& event_id);
     void SentryWorker();
     void GetBMCIp();
+    std::string BuildDiskSNIPMICommand(const IPMIEvent& event, uint8_t startIndex);
+    std::string GetDiskSNByIPMI(const IPMIEvent& event);
     void ReportAlarm(const IPMIEvent& event);
     void ReportResult(int resultLevel, const std::string& msg);
     int QueryEvents();

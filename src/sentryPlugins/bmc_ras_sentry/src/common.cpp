@@ -216,6 +216,25 @@ std::string ByteToHex(uint8_t byte)
     return "0x" + oss.str();
 }
 
+bool HexAsciiToChar(const std::string& hexStr, std::string& asciiStr)
+{
+    if (hexStr.length() != 2) {
+        BMC_LOG_ERROR << "input str length for hex ascii to char must be 2, str: " << hexStr;
+        return false;
+    }
+    
+    uint8_t asciiVal = 0;
+    unsigned long temp = std::stoul(hexStr, nullptr, 16);
+    if (temp > UINT8_MAX) {
+        BMC_LOG_ERROR << "input str value out for 255, str: " << hexStr;
+        return false;
+    }
+    asciiVal = static_cast<uint8_t>(temp);
+    asciiStr = static_cast<char>(asciiVal);
+
+    return true;
+}
+
 std::vector<std::string> SplitString(const std::string& str, const std::string& split)
 {
     std::vector<std::string> result;
