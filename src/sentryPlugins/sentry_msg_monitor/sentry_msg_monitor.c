@@ -380,9 +380,11 @@ static void sender_cleanup(void* arg)
     struct sender_cleanup_data *scd = (struct sender_cleanup_data *) arg;
     if (scd->fd > 0) {
         close(scd->fd);
+        scd->fd = -1;
     }
     if (scd->str) {
         free(scd->str);
+        scd->str = NULL;
     }
     logging_info("Sender thread cleanup over\n");
 }
@@ -390,6 +392,10 @@ static void sender_cleanup(void* arg)
 static void* sender_thread(void* arg)
 {
     int ret, retry_num;
+    struct sender_cleanup_data scd = {0};
+
+    pthread_cleanup_push(sender_cleanup, &scd);
+
     int fd = smh_dev_get_fd();
     if (fd < 0) {
         goto close_recv;
@@ -400,14 +406,12 @@ static void* sender_thread(void* arg)
     if (!str) {
         logging_error("Failed to allocate memory!");
         close(fd);
+        fd = -1;
         goto close_recv;
     }
 
-    struct sender_cleanup_data scd = {
-        .fd = fd,
-        .str = str,
-    };
-    pthread_cleanup_push(sender_cleanup, &scd);
+    scd.fd = fd;
+    scd.str = str;
 
     while (1) {
         struct sentry_msg_helper_msg smh_msg;
@@ -464,9 +468,14 @@ static void* sender_thread(void* arg)
     }
 
 sender_err:
-    close(fd);
-    free(str);
-    str = NULL;
+    if (fd > 0) {
+        close(fd);
+        scd.fd = -1;
+    }
+    if (str) {
+        free(str);
+        scd.str = NULL;
+    }
 close_recv:
     partner_t = *(pthread_t*)arg;
     if (partner_t) {
@@ -483,9 +492,11 @@ static void receiver_cleanup(void* arg)
     struct receiver_cleanup_data* rcd = (struct receiver_cleanup_data*) arg;
     if (rcd->fd > 0) {
         close(rcd->fd);
+        rcd->fd = -1;
     }
     if (rcd->al_msg) {
         free(rcd->al_msg);
+        rcd->al_msg = NULL;
     }
     if (rcd->register_info) {
         xalarm_unregister_event(rcd->register_info);
@@ -496,10 +507,13 @@ static void receiver_cleanup(void* arg)
 static void* receiver_thread(void* arg)
 {
     int ret, fd, retry_num;
-    struct alarm_msg *al_msg;
+    struct alarm_msg *al_msg = NULL;
     struct sentry_msg_helper_msg smh_msg;
     pthread_t partner_t;
-    struct alarm_register* register_info;
+    struct alarm_register* register_info = NULL;
+    struct receiver_cleanup_data rcd = {0};
+
+    pthread_cleanup_push(receiver_cleanup, &rcd);
 
     fd = smh_dev_get_fd();
     if (fd < 0) {
@@ -543,12 +557,9 @@ re_register:
         goto receiver_err;
     }
 
-    struct receiver_cleanup_data rcd = {
-        .fd = fd,
-        .al_msg = al_msg,
-        .register_info = &register_info
-    };
-    pthread_cleanup_push(receiver_cleanup, &rcd);
+    rcd.fd = fd;
+    rcd.al_msg = al_msg;
+    rcd.register_info = &register_info;
 
     while (1) {
         ret = xalarm_get_event(al_msg, register_info);
@@ -603,8 +614,14 @@ re_register:
 un_register:
     xalarm_unregister_event(&register_info);
 receiver_err:
-    free(al_msg);
-    close(fd);
+    if (al_msg) {
+        free(al_msg);
+        rcd.al_msg = NULL;
+    }
+    if (fd > 0) {
+        close(fd);
+        rcd.fd = -1;
+    }
 close_send:
     partner_t = *(pthread_t*)arg;
     if (partner_t) {
