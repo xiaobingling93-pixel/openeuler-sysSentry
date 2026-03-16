@@ -98,9 +98,9 @@ def wait_for_connection(server_sock, epoll, fd_to_socket, conn_thread_should_sto
                         fd_to_socket[connection.fileno()] = connection
                     logging.info("connection fd %d registered event.", connection.fileno())
         except socket.error as e: 
-            logging.debug(f"socket error, reason is {e}")
+            logging.error(f"socket error, reason is {e}")
         except (KeyError, OSError, ValueError) as e:
-            logging.debug(f"wait for connection failed {e}")
+            logging.error(f"wait for connection failed {e}")
 
 
 def broadcast_sentry_down(server_socket, fd_to_socket, fd_to_socket_lock):

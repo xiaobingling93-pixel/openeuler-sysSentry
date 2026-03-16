@@ -523,7 +523,7 @@ class CollectIo():
             EBPF_PROCESS.terminate()
             EBPF_PROCESS.wait(timeout=3)
         except subprocess.TimeoutExpired:
-            logging.debug("eBPF process did not exit within timeout. Forcing kill.")
+            logging.error("eBPF process did not exit within timeout. Forcing kill.")
             EBPF_PROCESS.kill()
             EBPF_PROCESS.wait()
         logging.info("ebpf collector thread exit")
