@@ -82,8 +82,8 @@ isentry:
 	install -d -m 700 $(VARLIB)/logrotate-syssentry
 	install -d -m 755 $(PYDIR)/syssentry
 	install -d -m 755 $(PYDIR)/syssentry/__pycache__
-	install -d -m 700 $(PYDIR)/xalarm
-	install -d -m 700 $(PYDIR)/xalarm/__pycache__
+	install -d -m 755 $(PYDIR)/xalarm
+	install -d -m 755 $(PYDIR)/xalarm/__pycache__
 	install -d -m 755 $(PYDIR)/sentryCollector
 	install -d -m 755 $(PYDIR)/sentryCollector/__pycache__
 	install -d -m 755 $(PYDIR)/$(PKGVEREGG)
