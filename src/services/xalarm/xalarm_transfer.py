@@ -25,6 +25,7 @@ MAX_ID_NUMBER = 1128
 MAX_CONNECTION_NUM = 100 
 TEST_CONNECT_BUFFER_SIZE = 32
 MAX_RETRY_TIMES = 3
+SYSSENTRY_DOWN_ALARM_ID = 1128
 
 
 def check_filter(alarm_info, alarm_filter):
@@ -102,6 +103,39 @@ def wait_for_connection(server_sock, epoll, fd_to_socket, conn_thread_should_sto
             logging.debug(f"wait for connection failed {e}")
 
 
+def broadcast_sentry_down(server_socket, fd_to_socket, fd_to_socket_lock):
+    """
+    broadcast sysSentry down alarm to all clients
+    :param server_socket: xalarmd service socket
+    :param fd_to_socket: dict instance, used to hold client connections and server connections
+    :param fd_to_socket_lock: lock instance for fd_to_socket
+    """
+    from .xalarm_api import Xalarm, alarm_stu2bin
+
+    to_remove = []
+
+    alarm_info = Xalarm(SYSSENTRY_DOWN_ALARM_ID, 1, 1, 0, 0, "sysSentry service is down")
+    bin_data = alarm_stu2bin(alarm_info)
+
+    with fd_to_socket_lock:
+        for fileno, connection in fd_to_socket.items():
+            try:
+                if connection is server_socket:
+                    continue
+                connection.sendall(bin_data)
+                logging.info("Broadcast sysSentry down msg success, fd is %d", fileno)
+            except (BrokenPipeError, ConnectionResetError):
+                to_remove.append(fileno)
+            except Exception as e:
+                logging.info("Broadcast sysSentry down msg failed, fd is %d, reason is: %s",
+                    fileno, str(e))
+
+        for fileno in to_remove:
+            fd_to_socket[fileno].close()
+            del fd_to_socket[fileno]
+            logging.info(f"cleaned up connection {fileno} for client lost connection.")
+
+
 def transmit_alarm(server_sock, epoll, fd_to_socket, bin_data, alarm_str, fd_to_socket_lock):
     """
     this function is to broadcast alarm data to client, if fail to send data, remove connections held by fd_to_socket
@@ -140,7 +174,7 @@ def transmit_alarm(server_sock, epoll, fd_to_socket, bin_data, alarm_str, fd_to_
                 except Exception as e:
                     sleep(0.1)
                     logging.info("Sending msg failed for %d times, fd is %d, alarm msg is %s, reason is: %s",
-                            i, connection.fileno(), alarm_str, str(e))
+                        i, connection.fileno(), alarm_str, str(e))
 
         for fileno in to_remove:
             fd_to_socket[fileno].close()

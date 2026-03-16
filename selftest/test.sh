@@ -76,6 +76,16 @@ function do_test_file()
     test_name="$(get_file_name_without_extension $testfile)"
 
     if [ "$extension" == "sh" ]; then
+        dbus_output=$(systemctl start xalarmd 2>&1)
+        ret=$?
+        if [ $ret -eq 0 ]; then
+            systemctl stop xalarmd
+        fi
+        if [[ "$dbus_output" == *"Failed to connect to bus: Host is down"* ]]; then
+            ((++actual_skip_nums))
+            actual_skip_cases+=("$testfile")
+            return $test_skip_status
+        fi
         timeout --signal=KILL 300s sh $testfile > "${test_name}.log" 2>&1
     elif [ "$extension" == "py" ]; then
         pytest-3 $testfile > "${test_name}.log" 2>&1

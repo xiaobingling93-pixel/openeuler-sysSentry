@@ -11,14 +11,15 @@ set +e
 
 function pre_test() {
     rm -f ./tmp_log
-    kill $(pgrep -w xalarmd)
+    systemctl stop xalarmd.socket xalarmd.service
     sleep 1
 }
 
 function do_test() {
     # 验证多次启动的场景
     start_line=$(expr $(wc -l < /var/log/sysSentry/xalarm.log) + 1)
-    /usr/bin/xalarmd
+    systemctl start xalarmd.socket
+    systemctl start xalarmd.service
     /usr/bin/xalarmd
     end_line=$(wc -l < /var/log/sysSentry/xalarm.log)
 
@@ -35,7 +36,7 @@ function do_test() {
 
 function post_test() {
     rm -f ./tmp_log
-    kill $(pgrep -w xalarmd)
+    systemctl stop xalarmd.socket xalarmd.service
     sleep 1
 }
 

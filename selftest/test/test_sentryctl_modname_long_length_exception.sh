@@ -14,7 +14,8 @@ function pre_test() {
     gcc test/sysSentry/test_task.c -o test/sysSentry/test_task
     cp test/sysSentry/test_task /usr/bin
 
-    syssentry &
+    systemctl start xalarmd.socket xalarmd.service
+    systemctl start sysSentry.socket sysSentry.service
     sleep 1
 }
 
@@ -46,11 +47,10 @@ function do_test() {
 }
 
 function post_test() {
-	while [[ -n "`ps aux|grep -w syssentry|grep -v grep`" ]]; do
-		kill -9 `pgrep -w syssentry`
-		kill -9 `pgrep -w test_task`
-		sleep 1
-	done
+    systemctl stop sysSentry.socket sysSentry.service
+    systemctl stop xalarmd.socket xalarmd.service
+    kill -9 `pgrep -w test_task`
+
     cat /etc/sysSentry/tasks/"$result2.mod"
     rm -rf ${tmp_log} test_task /usr/bin/test_task /etc/sysSentry/tasks/"$result2.mod"
 }

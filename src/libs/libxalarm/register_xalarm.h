@@ -28,6 +28,7 @@
 #define ALARM_KERNEL_REBOOT_EVENT 1009
 #define ALARM_KERNEL_REBOOT_ACK_EVENT 1010
 #define ALARM_UBUS_MEM_EVENT 1013
+#define SYSSENTRY_DOWN_ALARM_ID 1128
 
 #define MINOR_ALM 1
 #define MAJOR_ALM 2
@@ -75,7 +76,7 @@ enum report_event_type {
 
 int cpu_alarm_Report(unsigned short type, unsigned short module, unsigned short trans_to, unsigned short command,
                      unsigned short event_type, int socket_id, int core_id);
- 
+
 /*
  * hook回调函数处理
  * Notes        : 下述函数不支持多线程,不是信号安全函数
@@ -92,21 +93,21 @@ struct alarm_msg {
     struct timeval AlarmTime;
     char pucParas[ALARM_INFO_MAX_PARAS_LEN];
 };
- 
+
 struct alarm_register {
     int register_fd;
     char alarm_enable_bitmap[MAX_NUM_OF_ALARM_ID];
 };
- 
-int xalarm_report_event(unsigned short usAlarmId, char *pucParas);
+
+int xalarm_report_event(unsigned short usAlarmId, char *pucParas, size_t len);
 int xalarm_register_event(struct alarm_register** register_info, struct alarm_subscription_info id_filter);
 int xalarm_get_event(struct alarm_msg* msg, struct alarm_register *register_info);
-void xalarm_unregister_event(struct alarm_register *register_info);
+void xalarm_unregister_event(struct alarm_register **register_info);
 
 int xalarm_Register(alarm_callback_func callback, struct alarm_subscription_info id_filter);
 void xalarm_UnRegister(int client_id);
 bool xalarm_Upgrade(struct alarm_subscription_info id_filter, int client_id);
- 
+
 unsigned short xalarm_getid(const struct alarm_info *palarm);
 unsigned char xalarm_gettype(const struct alarm_info *palarm);
 unsigned char xalarm_getlevel(const struct alarm_info *palarm);

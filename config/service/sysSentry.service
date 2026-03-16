@@ -1,7 +1,7 @@
 [Unit]
 Description=EulerOS System Inspection Frame
-Requires=xalarmd.service
-After=xalarmd.service
+Requires=xalarmd.service sysSentry.socket
+After=xalarmd.service sysSentry.socket
 
 [Service]
 ExecStart=/usr/bin/python3 /usr/bin/syssentry

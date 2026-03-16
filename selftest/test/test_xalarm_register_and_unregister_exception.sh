@@ -13,7 +13,7 @@ function pre_test() {
     rm -rf ./checklog test/xalarm/unreg_demo test/xalarm/send_demo test/xalarm/reg_demo
     gcc test/xalarm/reg_demo.c -o test/xalarm/reg_demo -lxalarm
     gcc test/xalarm/unreg_demo.c -o test/xalarm/unreg_demo -lxalarm
-    xalarmd 
+    systemctl start xalarmd.socket xalarmd.service
 }
 
 function do_test() {
@@ -33,11 +33,11 @@ function do_test() {
 }
 
 function post_test() {
-    kill $(pgrep -w unreg_demo)
+    systemctl stop xalarmd.socket xalarmd.service
     sleep 1
     cat ./checklog
     rm -rf ./checklog test/xalarm/unreg_demo test/xalarm/reg_demo
-    kill $(pgrep -w xalarmd)
+    systemctl stop xalarmd.socket xalarmd.service
     sleep 1
 }
 

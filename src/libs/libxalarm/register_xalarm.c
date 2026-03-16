@@ -31,8 +31,6 @@
 #define DIR_XALARM "/var/run/xalarm"
 #define PATH_REG_ALARM "/var/run/xalarm/alarm"
 #define PATH_REPORT_ALARM "/var/run/xalarm/report"
-#define ALARM_DIR_PERMISSION 0750
-#define ALARM_SOCKET_PERMISSION 0600
 #define TIME_UNIT_MILLISECONDS 1000
 
 #define MAX_PARAS_LEN 8191
@@ -104,10 +102,8 @@ static int create_unix_socket(const char *path)
     }
 
     if (access(DIR_XALARM, F_OK) == -1) {
-        if (mkdir(DIR_XALARM, ALARM_DIR_PERMISSION) == -1) {
-            printf("mkdir %s failed\n", DIR_XALARM);
-            goto release_socket;
-        }
+        printf("xalarm directory %s does not exist, service may not be started\n", DIR_XALARM);
+        goto release_socket;
     }
 
     if (memset(&alarm_addr, 0, sizeof(alarm_addr)) == NULL) {
@@ -683,18 +679,19 @@ int xalarm_register_event(struct alarm_register **register_info, struct alarm_su
     return 0;
 }
 
-void xalarm_unregister_event(struct alarm_register *register_info)  
+void xalarm_unregister_event(struct alarm_register **register_info)
 {
-    if (register_info == NULL) {
+    if (register_info == NULL || *register_info == NULL) {
         return;
     }
     // close client fd socket connection resource
-    if (register_info->register_fd != -1) {
-        (void)close(register_info->register_fd);
-        register_info->register_fd = -1;
+    if ((*register_info)->register_fd != -1) {
+        (void)close((*register_info)->register_fd);
+        (*register_info)->register_fd = -1;
     }
 
-    free(register_info);
+    free(*register_info);
+    *register_info = NULL;
 }
 
 int xalarm_get_event(struct alarm_msg* msg, struct alarm_register *register_info)
@@ -739,6 +736,11 @@ int xalarm_get_event(struct alarm_msg* msg, struct alarm_register *register_info
         // alarm_info for communication and return alarm_msg(alarm_msg is subset of
         // alarm_info).
         if (recvlen == (int)sizeof(struct alarm_info)) {
+            // check if this is sysSentry down notification
+            if (info.usAlarmId == SYSSENTRY_DOWN_ALARM_ID) {
+                close(register_info->register_fd);
+                return -EBADF;
+            }
             // filter alarm id, alarm id reciecved which is not registered by this program
             // will be ignored and continue to wait for next msg
             if (info.usAlarmId < MIN_ALARM_ID || info.usAlarmId > MAX_ALARM_ID || 
@@ -755,17 +757,19 @@ int xalarm_get_event(struct alarm_msg* msg, struct alarm_register *register_info
     }
 }
 
-int xalarm_report_event(unsigned short usAlarmId, char *pucParas)
+int xalarm_report_event(unsigned short usAlarmId, char *pucParas, size_t len)
 {
     int ret, fd;
     struct alarm_info info;
     struct sockaddr_un alarm_addr;
 
     if (usAlarmId < MIN_ALARM_ID || usAlarmId > MAX_ALARM_ID) {
+        fprintf(stderr, "%s: invalid alarm id", __func__);
         return -EINVAL;
     }
 
-    if (pucParas == NULL || (int)strlen(pucParas) > MAX_PARAS_LEN) {
+    if (pucParas == NULL || strlen(pucParas) != len || len > MAX_PARAS_LEN) {
+        fprintf(stderr, "%s: invalid report msg or len", __func__);
         return -EINVAL;
     }
 
@@ -774,8 +778,12 @@ int xalarm_report_event(unsigned short usAlarmId, char *pucParas)
     info.ucAlarmLevel = MINOR_ALM;
     info.ucAlarmType = ALARM_TYPE_OCCUR;
     gettimeofday(&info.AlarmTime, NULL);
-    strncpy((char *)info.pucParas, (char *)pucParas, MAX_PARAS_LEN - 1);
 
+    ret = snprintf(info.pucParas, sizeof(info.pucParas), "%s", pucParas);
+    if (ret < 0 || ret >= sizeof(info.pucParas)) {
+        fprintf(stderr, "%s: snprintf failed\n", __func__);
+        return -EINVAL;
+    }
 
     fd = socket(AF_UNIX, SOCK_DGRAM, 0);
     if (fd < 0) {

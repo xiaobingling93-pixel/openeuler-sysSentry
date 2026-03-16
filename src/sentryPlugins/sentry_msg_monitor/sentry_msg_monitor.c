@@ -47,7 +47,7 @@
 struct receiver_cleanup_data {
     int fd;
     struct alarm_msg *al_msg;
-    struct alarm_register* register_info;
+    struct alarm_register** register_info;
 };
 
 struct sender_cleanup_data {
@@ -440,7 +440,7 @@ static void* sender_thread(void* arg)
         }
         retry_num = 0;
         for (int i = 0; i < MAX_RETRY_NUM; i++) {
-            ret = xalarm_report_event(alarm_type, str);
+            ret = xalarm_report_event(alarm_type, str, strlen(str));
             if (ret == 0) {
                 logging_info("Send msg success: alarm_type: %d\n", alarm_type);
                 break;
@@ -546,7 +546,7 @@ re_register:
     struct receiver_cleanup_data rcd = {
         .fd = fd,
         .al_msg = al_msg,
-        .register_info = register_info
+        .register_info = &register_info
     };
     pthread_cleanup_push(receiver_cleanup, &rcd);
 
@@ -554,7 +554,7 @@ re_register:
         ret = xalarm_get_event(al_msg, register_info);
         if (ret == -ENOTCONN || ret == -ECONNRESET || ret == -EBADF) {
             logging_warn("Failed to get msg: (%d) Xalarmd service exception, try to re-register\n", ret);
-            xalarm_unregister_event(register_info);
+            xalarm_unregister_event(&register_info);
             goto re_register;
         } else if (ret < 0) {
             logging_error("xalarm_get_event return %d\n", ret);
@@ -601,7 +601,7 @@ re_register:
     }
 
 un_register:
-    xalarm_unregister_event(register_info);
+    xalarm_unregister_event(&register_info);
 receiver_err:
     free(al_msg);
     close(fd);

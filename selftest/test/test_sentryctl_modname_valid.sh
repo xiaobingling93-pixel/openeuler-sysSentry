@@ -29,11 +29,9 @@ function do_test() {
 }
 
 function post_test() {
-    while [[ -n "`ps aux|grep -w syssentry|grep -v grep`" ]]; do
-        kill -9 `pgrep -w syssentry`
-        kill -9 `pgrep -w test_task`
-        sleep 1
-    done
+    systemctl stop sysSentry.socket sysSentry.service
+    systemctl stop xalarmd.socket xalarmd.service
+    kill -9 `pgrep -w test_task`
     rm -rf ${tmp_log}
     rm -rf test/sysSentry/test_task /usr/bin/test_task
     rm -rf /etc/sysSentry/tasks/this*.mod

@@ -22,10 +22,8 @@ import fcntl
 import socket
 
 from .xalarm_config import config_init, get_log_level
-from .xalarm_server import server_loop, SOCK_FILE
+from .xalarm_server import server_loop
 
-ALARM_DIR = "/var/run/xalarm"
-ALARM_DIR_PERMISSION = 0o750
 ALARM_LOGFILE = '/var/log/sysSentry/xalarm.log'
 XALARMD_PID_FILE = "/var/run/xalarm/xalarmd.pid"
 PID_FILE_FLOCK = None
@@ -68,10 +66,6 @@ def signal_handler(signum, _f):
     """signal handler
     """
     if signum == signal.SIGTERM:
-        try:
-            os.unlink(SOCK_FILE)
-        except FileNotFoundError:
-            pass
         release_pidfile()
         sys.exit(0)
 
@@ -116,10 +110,6 @@ def alarm_process_create():
     if not os.path.exists(os.path.dirname(ALARM_LOGFILE)):
         os.mkdir(os.path.dirname(ALARM_LOGFILE), 0o700)
 
-    if not os.path.exists(ALARM_DIR):
-        os.mkdir(ALARM_DIR)
-        os.chmod(ALARM_DIR, ALARM_DIR_PERMISSION)
-
     log_level = get_log_level()
     log_format = "%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
 
@@ -130,5 +120,12 @@ def alarm_process_create():
     os.chmod(ALARM_LOGFILE, 0o600)
 
     logging.info("xalarm daemon init")
+
+    listen_pid = int(os.environ.get('LISTEN_PID', '0'))
+    # Verify that the PID matches
+    if listen_pid != os.getpid():
+        logging.error("pid verify failed, systemd socket activation maybe not available or invalid")
+        logging.error("Please ensure xalarmd.socket is enabled and started")
+        logging.error("Run: systemctl enable xalarmd.socket && systemctl start xalarmd.socket")
 
     daemon_main()
