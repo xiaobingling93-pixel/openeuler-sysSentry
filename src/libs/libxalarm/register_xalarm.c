@@ -106,10 +106,7 @@ static int create_unix_socket(const char *path)
         goto release_socket;
     }
 
-    if (memset(&alarm_addr, 0, sizeof(alarm_addr)) == NULL) {
-        printf("create_unix_socket:  memset alarm_addr failed, ret: %d\n", ret);
-        goto release_socket;
-    }
+    memset(&alarm_addr, 0, sizeof(alarm_addr));
     alarm_addr.sun_family = AF_UNIX;
     strncpy(alarm_addr.sun_path, path, sizeof(alarm_addr.sun_path) - 1);
 
@@ -313,10 +310,7 @@ static int init_report_addr(struct sockaddr_un *alarm_addr, char *report_path)
         return -1;
     }
 
-    if (memset(alarm_addr, 0, sizeof(struct sockaddr_un)) == NULL) {
-        fprintf(stderr, "%s: memset  alarm_addr failed\n", __func__);
-        return -1;
-    }
+    memset(alarm_addr, 0, sizeof(struct sockaddr_un));
     alarm_addr->sun_family = AF_UNIX;
     strncpy(alarm_addr->sun_path, report_path, sizeof(alarm_addr->sun_path) - 1);
 
@@ -342,10 +336,7 @@ int xalarm_Report(unsigned short usAlarmId, unsigned char ucAlarmLevel,
         return -1;
     }
 
-    if (memset(&info, 0, sizeof(struct alarm_info)) == NULL) {
-        fprintf(stderr, "%s: memset info failed\n", __func__);
-        return -1;
-    }
+    memset(&info, 0, sizeof(struct alarm_info));
     info.usAlarmId = usAlarmId;
     info.ucAlarmLevel = ucAlarmLevel;
     info.ucAlarmType = ucAlarmType;
@@ -518,11 +509,7 @@ int send_data_to_socket(const char *socket_path, const char *message)
     }
 
     // set socket address
-    if (memset(&addr, 0, sizeof(struct sockaddr_un)) == NULL) {
-        fprintf(stderr, "%s: memset info failed.\n", __func__);
-        close(sockfd);
-        return RETURN_CODE_FAIL;
-    }
+    memset(&addr, 0, sizeof(struct sockaddr_un));
 
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path) - 1);
