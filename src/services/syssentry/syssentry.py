@@ -140,8 +140,14 @@ def get_syssentry_systemd_sockets():
                 elif stream_sock.getsockname() == "/run/sysSentry/heartbeat.sock":
                     heartbeat_fd = stream_sock
                 elif stream_sock.getsockname() == "/run/sysSentry/report.sock":
+                    if not CPU_EXIST:
+                        stream_sock.close()
+                        continue
                     cpu_alarm_fd = stream_sock
                 elif stream_sock.getsockname() == "/run/sysSentry/bmc.sock":
+                    if not BMC_EXIST:
+                        stream_sock.close()
+                        continue
                     bmc_fd = stream_sock
                 else:
                     logging.error("Found Unknown STREAM socket at FD %d (%s)", fd, stream_sock.getsockname())
@@ -417,8 +423,10 @@ def main_loop():
     fd_list.append(server_fd)
     fd_list.append(server_result_fd)
     fd_list.append(heartbeat_fd)
-    fd_list.append(cpu_alarm_fd)
-    fd_list.append(bmc_fd)
+    if CPU_EXIST:
+        fd_list.append(cpu_alarm_fd)
+    if BMC_EXIST:
+        fd_list.append(bmc_fd)
 
     epoll_fd = select.epoll()
     for fd in fd_list:
@@ -594,3 +602,4 @@ def main():
             xalarm_unregister(client_id)
         clean_child()
         release_pidfile()
+        close_all_fd()
