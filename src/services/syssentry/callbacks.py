@@ -54,12 +54,15 @@ def task_get_result(mod_name):
 def task_get_alarm(data):
     """get alarm by mod name"""
     try:
+        if not isinstance(data, dict):
+            return "failed", "data type error, current type is %s" % type(dict)
+        task_name, time_range, detailed = None, None, None
         task_name = data['task_name']
         time_range = data['time_range']
         detailed = data['detailed']
     except KeyError:
-        logging.debug("Key 'detailed' does not exist in the dictionary")
-        detailed = None
+        logging.debug("the expected key does not exist in the dictionary")
+
     task = TasksMap.get_task_by_name(task_name)
     if not task:
         return "failed", f"cannot find task by name {task_name}"

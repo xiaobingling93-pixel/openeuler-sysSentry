@@ -24,7 +24,6 @@ import fcntl
 import select
 
 from .sentry_config import SentryConfig, get_log_level
-
 from .task_map import TasksMap
 from .global_values import SENTRY_RUN_DIR, SENTRY_RUN_DIR_PERM
 from .cron_process import period_tasks_handle
@@ -43,7 +42,7 @@ from .load_mods import load_tasks, reload_single_mod
 from .heartbeat import (heartbeat_timeout_chk, heartbeat_recv)
 from .result import RESULT_MSG_HEAD_LEN, RESULT_MSG_MAGIC_LEN, RESULT_MAGIC
 from .result import RESULT_LEVEL_ERR_MSG_DICT, ResultLevel
-from .utils import get_current_time_string
+from .utils import get_current_time_string, MAX_MSG_LEN
 from .alarm import alarm_register
 
 from xalarm.register_xalarm import xalarm_unregister
@@ -141,8 +140,14 @@ def get_syssentry_systemd_sockets():
                 elif stream_sock.getsockname() == "/run/sysSentry/heartbeat.sock":
                     heartbeat_fd = stream_sock
                 elif stream_sock.getsockname() == "/run/sysSentry/report.sock":
+                    if not CPU_EXIST:
+                        stream_sock.close()
+                        continue
                     cpu_alarm_fd = stream_sock
                 elif stream_sock.getsockname() == "/run/sysSentry/bmc.sock":
+                    if not BMC_EXIST:
+                        stream_sock.close()
+                        continue
                     bmc_fd = stream_sock
                 else:
                     logging.error("Found Unknown STREAM socket at FD %d (%s)", fd, stream_sock.getsockname())
@@ -299,7 +304,10 @@ def server_recv(server_socket: socket.socket):
         client_socket.close()
         logging.error("msg head parse failed")
         return
-
+    if data_len > MAX_MSG_LEN:
+        client_socket.close()
+        logging.error("socket recv data is illegal:%d", data_len)
+        return
     try:
         msg_data = client_socket.recv(data_len)
         msg_data_decode = msg_data.decode()
@@ -317,6 +325,7 @@ def server_recv(server_socket: socket.socket):
         msg_data_decode_dict = json.loads(msg_data_decode)
         cmd_type = msg_data_decode_dict.get("type")
     except json.JSONDecodeError:
+        client_socket.close()
         logging.error("msg data process: msg_data_decode json decode error")
         return
 
@@ -366,6 +375,10 @@ def server_result_recv(server_socket: socket.socket):
         client_socket.close()
         logging.error("msg head parse failed")
         return
+    if data_len > MAX_MSG_LEN:
+        client_socket.close()
+        logging.error("socket recv data is illegal:%d", data_len)
+        return
 
     try:
         msg_data = client_socket.recv(data_len)
@@ -410,8 +423,10 @@ def main_loop():
     fd_list.append(server_fd)
     fd_list.append(server_result_fd)
     fd_list.append(heartbeat_fd)
-    fd_list.append(cpu_alarm_fd)
-    fd_list.append(bmc_fd)
+    if CPU_EXIST:
+        fd_list.append(cpu_alarm_fd)
+    if BMC_EXIST:
+        fd_list.append(bmc_fd)
 
     epoll_fd = select.epoll()
     for fd in fd_list:
@@ -587,3 +602,4 @@ def main():
             xalarm_unregister(client_id)
         clean_child()
         release_pidfile()
+        close_all_fd()

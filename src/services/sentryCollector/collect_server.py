@@ -24,6 +24,8 @@ import select
 import threading
 import time
 
+from syssentry.utils import MAX_MSG_LEN
+
 from .collect_io import IO_GLOBAL_DATA, IO_CONFIG_DATA, IO_DUMP_DATA, DISK_DATA
 from .collect_config import CollectConfig
 
@@ -218,6 +220,10 @@ class CollectServer():
             return
 
         try:
+            if data_len > MAX_MSG_LEN:
+                client_socket.close()
+                logging.error("socket recv data is illegal:%d", data_len)
+                return
             msg_data = client_socket.recv(data_len)
             msg_data_decode = msg_data.decode()
             logging.debug("msg data %s", msg_data_decode)

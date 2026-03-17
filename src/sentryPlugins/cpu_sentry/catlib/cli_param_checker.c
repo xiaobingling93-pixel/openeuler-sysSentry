@@ -49,7 +49,10 @@ void checkset_cpulist(char *getopt_optarg, catcli_request_body *p_request_body, 
             char *subSavePtr = NULL;
             char *subSplit = strtok_r(split, "-", &subSavePtr);
             long coreid_before = strtol(subSplit, NULL, DECIMAL);
-            long coreid_after = strcmp(subSavePtr, "") == 0 ? -1 : strtol(subSavePtr, NULL, DECIMAL);
+            long coreid_after = -1;
+            if (subSavePtr) {
+                coreid_after = strcmp(subSavePtr, "") == 0 ? -1 : strtol(subSavePtr, NULL, DECIMAL);
+            }
             if (coreid_before > total_core || coreid_after > total_core) {
                 strncpy(errs->cpulist_err,
                     "The specified \"cpulist\" contain cpu core id which has exceeded the max cpu core id,correct "

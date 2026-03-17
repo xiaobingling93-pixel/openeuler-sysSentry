@@ -439,7 +439,12 @@ static int notice_BMC(const struct hisi_common_error_section *err, uint8_t repai
 
     memset(&addr, 0, sizeof(struct sockaddr_un));
     addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, BMC_SOCKET_PATH, sizeof(addr.sun_path) - 1);
+    int ret = snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", BMC_SOCKET_PATH);
+    if (ret < 0 || ret >= sizeof(addr.sun_path)) {
+        log(LOG_ERROR, "snprintf failed");
+        close(sockfd);
+        return -1;
+    }
     if (connect(sockfd, (struct sockaddr *)&addr, sizeof(struct sockaddr_un)) < 0) {
         log(LOG_ERROR, "Failed to connect BMC notice socket\n");
         close(sockfd);

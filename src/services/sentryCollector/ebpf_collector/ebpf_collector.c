@@ -97,11 +97,17 @@ static void sig_handler(int sig)
 
 char* extract_device_name(const char *path) {
     const char *dev_dir = "/dev/";
-    char *name = strrchr(path, '/') + 1; 
-    if (strncmp(dev_dir, path, strlen(dev_dir)) == 0) {
-        return strdup(name); 
+    char *last_slash = strrchr(path, '/');
+
+    if (last_slash == NULL) {
+        return NULL;
     }
-    return NULL; 
+
+    char *name = last_slash + 1;
+    if (strncmp(dev_dir, path, strlen(dev_dir)) == 0) {
+        return strdup(name);
+    }
+    return NULL;
 }
 
 char* find_device_name(dev_t dev) {
@@ -204,6 +210,7 @@ static int print_map_res(int fd, char *stage, int map_size, int *io_dump)
                 io_type,
                 device_name
             );
+            free(device_name);
             fflush(stdout);
         }
     }

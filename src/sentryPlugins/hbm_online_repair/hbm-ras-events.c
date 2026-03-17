@@ -51,12 +51,13 @@ static int get_debugfs_dir(char *debugfs_dir, size_t len)
             break;
 
         if (strcmp(type, "debugfs") == 0) {
-            if (strlen(dir) > DEBUGFS_DIR_MAX_LEN) {
-                log(LOG_ERROR, "Unacceptable debugfs path\n");
+            size_t dir_len = strlen(dir);
+            if (dir_len >= len || dir_len > DEBUGFS_DIR_MAX_LEN) {
+                log(LOG_ERROR, "Unacceptable debugfs path length: %zu\n", dir_len);
+                fclose(fp);
                 return -1;
             }
-            strncpy(debugfs_dir, dir, len - 1);
-            debugfs_dir[len - 1] = '\0';
+            snprintf(debugfs_dir, len, "%s", dir);
             fclose(fp);
             return 0;
         }
@@ -86,15 +87,25 @@ static int create_trace_instance(char *trace_instance_dir)
 {
     char fname[MAX_PATH + 1];
     int rc;
+    size_t debugfs_dir_len;
 
-    get_debugfs_dir(fname, sizeof(fname));
-    strcat(fname, "/tracing/instances/"TOOL_NAME);
+    const char *sub_instance_path = "/tracing/instances/"TOOL_NAME;
+    size_t sub_instance_path_len = strlen(sub_instance_path);
+
+    rc = get_debugfs_dir(fname, sizeof(fname) - sub_instance_path_len);
+    if (rc < 0) {
+        log(LOG_ERROR, "Path too long for trace instance\n");
+        return rc;
+    }
+
+    debugfs_dir_len = strlen(fname);
+    snprintf(fname + debugfs_dir_len, sizeof(fname) - debugfs_dir_len, "%s", sub_instance_path);
     rc = mkdir(fname, S_IRWXU);
     if (rc < 0 && errno != EEXIST) {
         log(LOG_INFO, "Unable to create " TOOL_NAME " instance at %s\n", fname);
         return -1;
     }
-    strcpy(trace_instance_dir, fname);
+    snprintf(trace_instance_dir, MAX_PATH + 1, "%s", fname);
     return 0;
 }
 
