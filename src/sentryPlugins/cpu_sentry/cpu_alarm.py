@@ -83,15 +83,23 @@ def get_cpu_num():
     if not ret:
         return -1
     matches = list(re.finditer(r"^\s*(CPU|CPU\(s\)):\s*\d+$", ret, re.MULTILINE))
+    if not matches:
+        logging.error("No CPU information found in lscpu output")
+        return -1
     cpu_num_str = matches[0].group(0).split()[-1]
-    return int(cpu_num_str)
+    try:
+        return int(cpu_num_str)
+    except ValueError:
+        logging.error("Failed to parse CPU number: %s", cpu_num_str)
+        return -1
 
 
 def get_cpu_interval():
     cmd_list = ["/usr/sbin/dmidecode", "-t", "processor"]
     ret = execute_command(cmd_list)
     if not ret:
-        return -1
+        logging.error("dmidecode cmd failed")
+        return [], -1
 
     core_count_pattern = r"Core Count:\s*\d+"
     matches_core_count = [
@@ -119,6 +127,9 @@ def get_cpu_interval():
         group_num += thread_count // core_count
 
     cpu_num = get_cpu_num()
+    if (cpu_num < 0):
+        logging.error("invalid cpu num")
+        return [], -1
 
     core_siblings_list = []
     if group_num == 0:
@@ -153,6 +164,10 @@ def upload_bmc(_type, module, command, event_type, socket_id, core_id_logical):
             return
 
         core_siblings_list, cpu_num_per_group = get_cpu_interval()
+        if (len(core_siblings_list) == 0):
+            logging.error("get empty cpu list")
+            return
+
         core_id = get_core_id(core_id_logical, core_siblings_list)
         if core_id < 0:
             logging.error("cannot map `logical_core_id` to `core_siblings`")
