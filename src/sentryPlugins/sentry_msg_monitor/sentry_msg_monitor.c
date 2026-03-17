@@ -279,10 +279,9 @@ static int convert_ub_mem_err_smh_msg_to_str(struct sentry_msg_helper_msg* smh_m
         return -1;
     }
 
-    strncpy(str, json_str, MSG_STR_MAX_LEN - 1);
-
-    if (strlen(str) >= MSG_STR_MAX_LEN) {
-        logging_error("msg str size exceeds the max value\n");
+    int len = snprintf(str, MSG_STR_MAX_LEN, "%s", json_str);
+    if (len < 0 || (size_t)len >= MSG_STR_MAX_LEN) {
+        logging_error("snprintf failed, msg str size exceeds the max value\n");
         json_object_put(root);
         return -1;
     }

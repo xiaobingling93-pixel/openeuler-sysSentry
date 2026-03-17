@@ -290,7 +290,11 @@ static cat_return_t get_core_list_str(const core_list_st *core_list, char *out_s
     }
     (void)strncat(buf, tmp_buf, sizeof(buf) - strlen(buf) - 1);
 
-    strncpy(out_str, buf, out_str_len);
+    int ret = snprintf(out_str, out_str_len, "%s", buf);
+    if (ret < 0 || ret >= out_str_len) {
+        CAT_LOG_E("snprintf failed");
+        return CAT_ERR;
+    }
     return CAT_OK;
 }
 
