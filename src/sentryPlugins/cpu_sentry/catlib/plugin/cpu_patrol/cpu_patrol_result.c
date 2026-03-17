@@ -79,7 +79,10 @@ static cat_return_t parse_patrol_result(char *buf, core_list_st *fault_list)
         char *sub_save_ptr = NULL;
         char *subSplit = strtok_r(split, line_split, &sub_save_ptr);
         int coreid_before = (int) strtol(subSplit, NULL, number_base);
-        int coreid_after = strcmp(sub_save_ptr, "") == 0 ? -1 : (int) strtol(sub_save_ptr, NULL, 10);
+        int coreid_after = -1;
+        if (sub_save_ptr) {
+            coreid_after = strcmp(sub_save_ptr, "") == 0 ? -1 : (int) strtol(sub_save_ptr, NULL, 10);
+        }
         if (coreid_after < 0) {
             insert_core_to_list(fault_list, coreid_before);
         } else {
