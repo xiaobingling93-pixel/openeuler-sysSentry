@@ -213,11 +213,12 @@ int get_socket_id(int core_id) {
     while (fgets(line, MAX_LINE_LEN, file) != NULL) {
         parse_string(line, id_pair, 2);
         if (id_pair[0] == core_id) {
+            pclose(file);
             return id_pair[1];
         }
     }
 
-    fclose(file);
+    pclose(file);
     return -1;
 }
 
