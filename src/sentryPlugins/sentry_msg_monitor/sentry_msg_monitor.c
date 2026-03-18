@@ -97,6 +97,7 @@ static int release_pid_file(int fd)
     int ret;
     ret = handle_file_lock(fd, false);
     if (ret < 0) {
+        close(fd);
         logging_error("release pid file %s lock failed, error msg is %s\n", PID_FILE_PATH, strerror(errno));
         return ret;
     }
