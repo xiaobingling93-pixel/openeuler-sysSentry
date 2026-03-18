@@ -74,6 +74,10 @@ static int find_processes_by_device(const char *obmm_shmdev_name, pid_t **pids, 
         if (!duplicate) {
             if (found >= capacity) {
                 capacity *= 2;
+                if (capacity > SIZE_MAX / sizeof(pid_t)) {
+                    logging_error("capacity is too long");
+                    break;
+                }
                 pid_t *new_pids = realloc(*pids, capacity * sizeof(pid_t));
                 if (!new_pids) {
                     logging_error("realloc failed\n");
@@ -185,6 +189,10 @@ static int check_process_mapping(const char *obmm_shmdev_name, pid_t pid, unsign
             if (is_accessing_faulty_address(obmm_shmdev_name, tid_maps_path, obmm_offset, virt_addr)) {
                 if (found >= capacity) {
                     capacity *= 2;
+                    if (capacity > SIZE_MAX / sizeof(pid_t)) {
+                        logging_error("capacity is too loncapacity is too long");
+                        break;
+                    }
                     pid_t *new_tids = realloc(*tids, capacity * sizeof(pid_t));
                     if (!new_tids) {
                         logging_error("realloc new_tids failed\n");
