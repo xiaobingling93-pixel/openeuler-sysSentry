@@ -186,6 +186,7 @@ if __name__ == '__main__':
             {"name" : "ub_mem_fault", "type" : str, "choices": ["on", "off"], "required" : False, "help": "Enable/Disable UB mem event"},
             {"name" : "power_off", "type": str, "choices": ["on", "off"], "required" : False, "help": "Enable/Disable power off event"},
             {"name" : "oom", "type" : str, "choices": ["on", "off"], "required" : False, "help": "Enable/Disable oom event"},
+            {"name" : "oom_policy", "type": str, "choices": None, "required" : False, "help": "Set OOM rate limit policy in JSON format, e.g. '{\"RR_KSWAPD\": 5, \"RR_DIRECT_RECLAIM\": 3, \"RR_HUGEPAGE_RECLAIM\": 2}'"},
         ],
     }
     parser_set = subparsers.add_parser('set', help='set plugins params')

@@ -26,6 +26,7 @@ from .sentry_proc import (
     set_urma_heartbeat,
     set_uvb_proc,
     set_urma_proc,
+    set_oom_rate_limit_policy,
     MAX_URMA_EID_LENGTH
 )
 
@@ -190,6 +191,36 @@ def task_set(set_data):
                 ret_code |= set_sentry_reporter_proc("power_off", set_data['power_off'])
             if set_data.get('oom') is not None:
                 ret_code |= set_sentry_reporter_proc("oom", set_data['oom'])
+            if set_data.get('oom_policy') is not None:
+                try:
+                    policy_dict = json.loads(set_data['oom_policy'])
+                    if not isinstance(policy_dict, dict):
+                        return "failed", "oom_policy must be a JSON object"
+
+                    valid_event_types = ["RR_KSWAPD", "RR_DIRECT_RECLAIM", "RR_HUGEPAGE_RECLAIM"]
+                    policy_parts = []
+
+                    for event_type, limit in policy_dict.items():
+                        if event_type not in valid_event_types:
+                            return "failed", f"Invalid event type: {event_type}."
+
+                        if not isinstance(limit, int):
+                            return "failed", f"Limit value for {event_type} must be an integer"
+
+                        if limit < 0:
+                            return "failed", f"Limit value for {event_type} must be >= 0"
+
+                        policy_parts.append(f"{event_type}:{limit}")
+
+                    if not policy_parts:
+                        return "failed", "oom_policy must contain at least one event type"
+
+                    kernel_format = ",".join(policy_parts)
+                    ret_code |= set_oom_rate_limit_policy(kernel_format)
+                except json.JSONDecodeError:
+                    return "failed", "oom_policy must be valid JSON format"
+                except Exception as e:
+                    return "failed", f"Failed to parse oom_policy: {str(e)}"
         else:
             return "failed", "Unknown task name: %s" % set_ko_name
         if ret_code != 0:

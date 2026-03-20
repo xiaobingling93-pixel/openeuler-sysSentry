@@ -103,3 +103,12 @@ def set_urma_proc(server_eid, client_jetty_id):
                 return -1
     write_urma_info = " ".join((server_eid, str(client_jetty_id)))
     return write_proc_file("sentry_urma_comm", "client_info", write_urma_info)
+
+
+def set_oom_rate_limit_policy(policy_json):
+    """
+    Set OOM rate limit policy via proc file
+    policy_json: JSON string format like '{"RR_KSWAPD": 5, "RR_DIRECT_RECLAIM": 3, "RR_HUGEPAGE_RECLAIM": 2}'
+    Returns: 0 on success, negative error code on failure
+    """
+    return write_proc_file("sentry_reporter", "oom_rate_limit", policy_json)
