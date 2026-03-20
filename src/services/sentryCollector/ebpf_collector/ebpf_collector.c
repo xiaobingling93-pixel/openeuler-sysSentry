@@ -434,28 +434,34 @@ int main(int argc, char **argv) {
     struct ring_buffer *rb = NULL;
     rb = ring_buffer__new(bpf_map__fd(skel->maps.ringbuf), handle_event, NULL, NULL);
     if (!rb) {
+        logMessage(LOG_LEVEL_ERROR, "Failed to init buffer\n");
+        ebpf_collector_bpf__destroy(skel);
         return 1;
     }
 
 
     if (init_map(BLK_RES, "blk_res_map", device_count, devices)) {
         logMessage(LOG_LEVEL_ERROR, "blk_res_map failed.\n");
+        ring_buffer__free(rb);
         ebpf_collector_bpf__destroy(skel);
         return 1;
     }
 
     if (init_map(BIO_RES, "blo_res_map", device_count, devices) != 0) {
         logMessage(LOG_LEVEL_ERROR, "blo_res_map failed.\n");
+        ring_buffer__free(rb);
         ebpf_collector_bpf__destroy(skel);
         return 1;
     }
     if (init_map(WBT_RES, "wbt_res_map", device_count, devices) != 0) {
         logMessage(LOG_LEVEL_ERROR, "wbt_res_map failed.\n");
+        ring_buffer__free(rb);
         ebpf_collector_bpf__destroy(skel);
         return 1;
     }
     if (init_map(TAG_RES, "tag_res_map", device_count, devices) != 0) {
         logMessage(LOG_LEVEL_ERROR, "tag_res_map failed.\n");
+        ring_buffer__free(rb);
         ebpf_collector_bpf__destroy(skel);
         return 1;
     }

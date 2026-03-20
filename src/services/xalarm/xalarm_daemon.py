@@ -51,15 +51,18 @@ def release_pidfile():
     """
     :return:
     """
+    pid_file_fd = None
     try:
         pid_file_fd = open(XALARMD_PID_FILE, 'w')
         os.chmod(XALARMD_PID_FILE, 0o600)
         fcntl.flock(pid_file_fd, fcntl.LOCK_UN)
-        pid_file_fd.close()
-        PID_FILE_FLOCK.close()
-        os.unlink(XALARMD_PID_FILE)
     except (IOError, FileNotFoundError):
         logging.error("Failed to release PID file lock")
+    finally:
+        if not pid_file_fd:
+            pid_file_fd.close()
+        PID_FILE_FLOCK.close()
+        os.unlink(XALARMD_PID_FILE)
 
 
 def signal_handler(signum, _f):
@@ -88,6 +91,8 @@ def daemon_init():
 
     if not chk_and_set_pidfile():
         logging.error("get pid file lock failed, exist")
+        if not PID_FILE_FLOCK:
+            PID_FILE_FLOCK.close()
         sys.exit(17)
 
     logging.info("xalarm daemon init success")
