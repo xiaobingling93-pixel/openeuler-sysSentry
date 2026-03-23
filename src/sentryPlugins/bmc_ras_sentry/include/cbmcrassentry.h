@@ -31,11 +31,17 @@ struct IPMIEvent {
     uint32_t timestamp;
     uint8_t severity;
     uint8_t subjectType;
-    uint8_t deviceId;
+    uint16_t deviceId;
     bool valid;
 };
 
+struct PhysicalDiskAddress {
+    std::string encId;
+    std::string slotId;
+};
+
 using BMCEventMap = std::map<std::string, uint32_t>;
+using DiskSNToBlockName = std::map<std::string, std::set<std::string> >;
 
 class CBMCRasSentry {
 public:
@@ -47,11 +53,25 @@ public:
     bool IsRunning();
     void PraseBMCEvents(const std::string& bmc_events_value);
 private:
+    void GetDiskPassthroughInfo();
+    std::pair<std::string, std::vector<PhysicalDiskAddress> > GetStorcliVDInfo(
+        const std::string& ctrlId, const std::string& VDId);
+    std::vector<std::string> GetStorcliPDSN(
+        const std::vector<PhysicalDiskAddress>& PDAddresses, const std::string& ctrlId);
+    void GetStorcliRaidInfo();
+    std::pair<std::string, std::vector<PhysicalDiskAddress> > GetHiraidadmVdDetailInfo(int ctrlId, int VDId);
+    std::map<std::string, std::vector<PhysicalDiskAddress> > GetHiraidadmVDInfo(int ctrlId);
+    std::vector<std::string> GetHiraidadmDiskSN(int ctrlId, const std::vector<PhysicalDiskAddress>& PDAddresses);
+    void GetHiraidadmRaidInfo();
+    void SetDiskSNToBlockName(const std::string& blockName,
+        const std::vector<std::string> diskSNs, DiskSNToBlockName& diskSNToBlockName);
     void InitBMCEvents();
     void OpenAllBMCEvents();
     void OpenBMCEvents(const std::string& event_id);
     void SentryWorker();
     void GetBMCIp();
+    std::string BuildDiskSNIPMICommand(const IPMIEvent& event, uint8_t startIndex);
+    std::string GetDiskSNByIPMI(const IPMIEvent& event);
     void ReportAlarm(const IPMIEvent& event);
     void ReportResult(int resultLevel, const std::string& msg);
     int QueryEvents();
@@ -69,6 +89,7 @@ private:
     std::string m_bmcIp;
     std::set<uint8_t> m_lastDeviceIds;
     std::set<uint8_t> m_currentDeviceIds;
+    std::vector<DiskSNToBlockName> m_diskSNToBlockNames;
     std::map<uint32_t, std::string> m_BMCOpenEvents;
     BMCEventMap m_BMCBlockEvents;
     std::map<std::string, BMCEventMap> m_BMCEvents;

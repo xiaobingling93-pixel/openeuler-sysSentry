@@ -13,6 +13,7 @@
 #include <cctype>
 #include <vector>
 #include <map>
+#include <json-c/json.h>
 #include "configure.h"
 #include "logger.h"
 
@@ -40,9 +41,30 @@ std::map<std::string, std::map<std::string, std::string>> parseModConfig(const s
 std::string ExtractFileName(const std::string& path);
 int ExecCommand(const std::string& cmd, std::vector<std::string>& result);
 std::string ByteToHex(uint8_t byte);
+bool HexAsciiToChar(const std::string& hexStr, std::string& asciiStr);
 std::vector<std::string> SplitString(const std::string& str, const std::string& split);
+std::vector<std::string> SplitBySpace(const std::string& str);
+std::map<std::string, std::vector<std::string> > ParseStorcliCmd(const std::string& cmd);
+std::pair<std::map<std::string, uint8_t>, std::vector<std::vector<std::string> > > ParseCmdMap(
+    const std::vector<std::string>& inputVec);
+std::map<std::string, std::string> ParseStorcliKeyToValue(const std::vector<std::string>& inputVec);
+json_object* ParseHiraidadmCmd(const std::string& cmd);
 std::string uint32_to_hex_string(uint32_t num);
 std::string unit32_to_local_time(uint32_t timestamp);
+
+template<typename... Args>
+std::string format_string(const std::string& fmt, Args&&... args)
+{
+    int buf_size = std::snprintf(nullptr, 0, fmt.c_str(), std::forward<Args>(args)...);
+    if (buf_size < 0) {
+        return "";
+    }
+
+    std::string result(buf_size + 1, '\0');
+    std::snprintf(&result[0], result.size(), fmt.c_str(), std::forward<Args>(args)...);
+    result.pop_back();
+    return result;
+}
 }
 
 #endif
