@@ -21,39 +21,21 @@ from datetime import datetime, timezone, timedelta
 MAX_MSG_LEN = 10 * 1024 * 1024  # 10MB
 
 
-def is_valid_cmd(cmd):
-    """check cmd"""
-    if not isinstance(cmd, str):
-        logging.error("cmd must be a string")
-        raise ValueError
-    if not cmd.strip():
-        logging.error("cmd cannot be empty")
-        raise ValueError
-    return True if cmd.isalnum() else False
-
-
 def run_cmd(cmd):
     """run cmd use subprocess.run"""
-    if not is_valid_cmd(cmd):
-        raise ValueError("cmd is illegal")
     result = subprocess.run(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
     return result
 
 
 def run_popen(cmd):
     """run cmd use subprocess.Popen"""
-    if not is_valid_cmd(cmd):
-        raise ValueError("cmd is illegal")
     pipe = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     return pipe
 
 
 def is_exists_cmd(cmd: str) -> bool:
     """Checking Whether a Command Exists in the Environment"""
-    try:
-        res = run_cmd(f"which {cmd}")
-    except ValueError:
-        return False
+    res = run_cmd(f"which {cmd}")
     if res.returncode:
         return False
     return True
@@ -64,10 +46,7 @@ def get_process_pid(process_name):
     process_pid = -1
     if "/" in process_name:
         process_name = process_name.split("/")[-1]
-    try:
-        res = run_cmd('pgrep -x {}'.format(process_name))
-    except ValueError:
-        return -1
+    res = run_cmd('pgrep -x {}'.format(process_name))
     if res.returncode == 0:
         process_pid = res.stdout.decode().strip()
         try:
@@ -86,8 +65,6 @@ def get_current_time_string():
 
 def execute_command(cmd_list):
     try:
-        if not is_valid_cmd("".join(cmd_list)):
-            raise ValueError("cmd is illegal")
         process = subprocess.run(
             cmd_list,
             shell=False,
@@ -100,6 +77,5 @@ def execute_command(cmd_list):
             logging.error("execute command with illegal returncode")
             return None
         return process.stdout
-    except (OSError, ValueError):
+    except OSError:
         logging.error("failed to execute command")
-        return None

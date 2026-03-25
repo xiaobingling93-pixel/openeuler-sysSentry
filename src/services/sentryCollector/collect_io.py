@@ -20,7 +20,6 @@ import subprocess
 import re
 from typing import Union
 
-from syssentry.utils import is_valid_cmd
 from .collect_config import CollectConfig
 from .collect_config import CONF_IO_NVME_SSD, CONF_IO_SATA_SSD, CONF_IO_SATA_HDD, CONF_IO_THRESHOLD_DEFAULT
 from .collect_plugin import get_disk_type, DiskType
@@ -497,9 +496,6 @@ class CollectIo():
         self
     ) -> None:
         global EBPF_PROCESS
-        if is_valid_cmd(self.ebpf_base_path):
-            logging.error("Invalid ebpf_base_path: %s" % self.ebpf_base_path)
-            return
         try:
             EBPF_PROCESS = subprocess.Popen(
                 self.ebpf_base_path,
