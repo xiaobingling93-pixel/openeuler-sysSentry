@@ -97,10 +97,7 @@ class InspectTask:
             return 0
         pre_cmd_list = self.task_pre.split(";")
         for pre_cmd_i in pre_cmd_list:
-            try:
-                result = run_cmd(pre_cmd_i)
-            except ValueError:
-                return -1
+            result = run_cmd(pre_cmd_i)
             if result.stderr:
                 logging.error("task %s pre cmd (%s) execute failed, error msg is %s",
                               self.name, pre_cmd_i, result.stderr)
@@ -120,10 +117,7 @@ class InspectTask:
         post_success = True
         post_cmd_list = self.task_post.split(";")
         for post_cmd_i in post_cmd_list:
-            try:
-                result = run_cmd(post_cmd_i)
-            except ValueError:
-                return -1
+            result = run_cmd(post_cmd_i)
             if result.stderr:
                 post_success = False
                 logging.warning("task %s post cmd (%s) execute failed, error msg is %s",
