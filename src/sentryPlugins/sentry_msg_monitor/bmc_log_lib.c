@@ -44,6 +44,7 @@ static const char* rmrs_result_strings[] = {
 static char* get_rmrs_result_string(enum sentry_rmrs_result_type rmrs_res_type)
 {
     if (rmrs_res_type < 0 || rmrs_res_type >= RMRS_UNKNOWN_CODE) {
+        logging_error("%s: invalid args.\n", __func__);
         return NULL;
     }
 
@@ -53,7 +54,7 @@ static char* get_rmrs_result_string(enum sentry_rmrs_result_type rmrs_res_type)
 static int string_to_ascii_hex(const char* raw_string, char* ascii_string, int ascii_string_size)
 {
     if (!raw_string || !ascii_string || ascii_string_size <= 0) {
-        logging_error("invalid args.\n");
+        logging_error("%s: invalid args.\n", __func__);
         return -1;
     }
 
@@ -86,7 +87,7 @@ static int execute_command(const char *command)
     int ret = 0;
 
     if (!command) {
-        logging_error("invalid args.\n");
+        logging_error("%s: invalid args.\n", __func__);
         return -1;
     }
 
