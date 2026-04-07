@@ -102,6 +102,10 @@ CBMCRasSentry::CBMCRasSentry() :
 
 CBMCRasSentry::~CBMCRasSentry()
 {
+    for (const auto & it : m_BMCBlockIoChange) {
+        if (it.second)
+            CloseBMCBlockIo(it.first);
+    }
 }
 
 void CBMCRasSentry::GetDiskPassthroughInfo()
@@ -523,10 +527,31 @@ void CBMCRasSentry::PraseBMCEvents(const std::string& bmc_events_value)
     for (const auto& event_id : result) {
         if (event_id == ALL_BMC_EVENTS) {
             OpenAllBMCEvents();
-            return;
+            break;
         } else {
             OpenBMCEvents(event_id);
         }
+    }
+ 
+    if (IsOpenBMCBlockIo()) {
+        for (const auto & it : m_BMCBlockIoChange) {
+            OpenBMCBlockIo(it.first);
+        }
+    } else {
+        for (const auto & it : m_BMCBlockIoChange) {
+            if (it.second)
+                CloseBMCBlockIo(it.first);
+        }
+    }
+}
+
+bool CBMCRasSentry::IsOpenBMCBlockIo()
+{
+    auto it = m_BMCOpenEvents.find(ALARM_OCCUR_CODE);
+    if (it == m_BMCOpenEvents.end()) {
+        return false;
+    } else {
+        return true;
     }
 }
 
@@ -619,6 +644,84 @@ void CBMCRasSentry::GetBMCIp()
         }
     }
     return;
+}
+
+std::string CBMCRasSentry::BuilSetBMCBlockIoCommand(uint8_t blockType, bool openFlag)
+{
+    const std::string ipmiReqHead = "ipmitool raw 0x30 0x93";
+    const std::string reqId = "0x3E";
+    const std::string parameterSelector = "0x00 0x19";
+    const std::string blcokSelector = "0xFF";
+    const std::string extrenSelector = "0xFF";
+    const std::string frameType = "0x00";
+    const std::string writingOffset = "0x00 0x00";
+    const std::string writingLength = "0x01";
+    std::string parameterData;
+    if (openFlag) {
+        parameterData = "0x01";
+    } else {
+        parameterData = "0x00";
+    }
+    std::ostringstream cmdStream;
+    cmdStream << ipmiReqHead
+              << " " << IPMI_REQUEST_KUNPENG_ID
+              << " " << reqId
+              << " " << parameterSelector
+              << " " << ByteToHex(blockType)
+              << " " << blcokSelector
+              << " " << extrenSelector
+              << " " << frameType
+              << " " << writingOffset
+              << " " << writingLength
+              << " " << parameterData;
+    return cmdStream.str();
+}
+
+std::string CBMCRasSentry::BuilGetBMCBlockIoCommand(uint8_t blockType)
+{
+    const std::string ipmiReqHead = "ipmitool raw 0x30 0x93";
+    const std::string reqId = "0x3D";
+    const std::string parameterSelector = "0x00 0x19";
+    const std::string blcokSelector = "0xFF";
+    const std::string extrenSelector = "0xFF";
+    const std::string readingOffset = "0x00 0x00";
+    const std::string readingLength = "0xFF";
+    std::ostringstream cmdStream;
+    cmdStream << ipmiReqHead
+              << " " << IPMI_REQUEST_KUNPENG_ID
+              << " " << reqId
+              << " " << parameterSelector
+              << " " << ByteToHex(blockType)
+              << " " << blcokSelector
+              << " " << extrenSelector
+              << " " << readingOffset
+              << " " << readingLength;
+    return cmdStream.str();
+}
+
+void CBMCRasSentry::OpenBMCBlockIo(uint8_t blockType)
+{
+    auto getCmd = BuilGetBMCBlockIoCommand(blockType);
+    auto hexBytes = ExecuteIPMICommand(getCmd);
+    if (hexBytes.empty() || hexBytes.size() < 5) {
+         BMC_LOG_ERROR << "get bmc block io failed, cmd: " << getCmd;
+         return;
+    }
+
+    if (hexBytes[4] == "01") {
+        return;
+    }
+
+    auto setCmd = BuilSetBMCBlockIoCommand(blockType, true);
+    ExecuteIPMICommand(setCmd);
+    m_BMCBlockIoChange[blockType] = true;
+}
+
+void CBMCRasSentry::CloseBMCBlockIo(uint8_t blockType)
+{
+    auto Cmd = BuilSetBMCBlockIoCommand(blockType, false);
+    ExecuteIPMICommand(Cmd);
+    m_BMCBlockIoChange[blockType] = false;
 }
 
 std::string CBMCRasSentry::BuildDiskSNIPMICommand(const IPMIEvent& event, uint8_t startIndex)

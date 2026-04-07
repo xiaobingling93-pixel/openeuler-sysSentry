@@ -68,8 +68,13 @@ private:
     void InitBMCEvents();
     void OpenAllBMCEvents();
     void OpenBMCEvents(const std::string& event_id);
+    bool IsOpenBMCBlockIo();
     void SentryWorker();
     void GetBMCIp();
+    std::string BuilSetBMCBlockIoCommand(uint8_t blockType, bool openFlag);
+    std::string BuilGetBMCBlockIoCommand(uint8_t blockType);
+    void OpenBMCBlockIo(uint8_t blockType);
+    void CloseBMCBlockIo(uint8_t blockType);
     std::string BuildDiskSNIPMICommand(const IPMIEvent& event, uint8_t startIndex);
     std::string GetDiskSNByIPMI(const IPMIEvent& event);
     void ReportAlarm(const IPMIEvent& event);
@@ -93,6 +98,10 @@ private:
     std::map<uint32_t, std::string> m_BMCOpenEvents;
     BMCEventMap m_BMCBlockEvents;
     std::map<std::string, BMCEventMap> m_BMCEvents;
+    std::map<uint8_t, bool> m_BMCBlockIoChange = {
+        {0x00, false},
+        {0x01, false}
+    };
     int m_patrolSeconds;
     int m_alarmId;
 };
