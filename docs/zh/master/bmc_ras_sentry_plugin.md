@@ -70,6 +70,28 @@ bmc_events=0101,0102
 | 11       | 0x02000041 | 硬盘预估剩余寿命过低                  |
 | 12       | 0x0200001D | 硬盘剩余寿命过低告警                  |
 
+- BMC RAID卡事件字典
+
+| id       | bmc告警id  | 事件说明                              |
+| -------- | ---------- | ------------------------------------- |
+| 01       | 0x0800004B | RAID标卡故障                          |
+| 02       | 0x0200000B | 硬盘RAID组失效                        |
+
+- BMC 内存事件字典
+
+| id       | bmc告警id  | 事件说明                              |
+| -------- | ---------- | ------------------------------------- |
+| 01       | 0x01000017 | DIMM MCE错误                          |
+| 02       | 0x0100003D | 内存温度过高严重告警                  |
+| 03       | 0x0100005B | 内存条接触异常告警                    |
+| 04       | 0x01000079 | 内存CE风暴故障告警                    |
+
+- BMC CPU事件字典
+
+| id       | bmc告警id  | 事件说明                              |
+| -------- | ---------- | ------------------------------------- |
+| 01       | 0x0000001D | CPU MCE/AER错误                       |
+
 ## 使用bmc ras告警上报插件
 
 1. 启动巡检
@@ -118,6 +140,69 @@ bmc_events=0101,0102
     ]
    ```
 
+   ```shell
+    [
+        {
+            "alarm_id": 1015,
+            "alarm_type": "ALARM_TYPE_OCCUR",
+            "alarm_level": "MINOR_ALM",
+            "timestamp": "2026-03-25 13:35:27",
+            "alarm_info": {
+                "alarm_source": "bcm_ras_sentry",
+                "id": "0201",
+                "bmc_id": "0x0800004B",
+                "level": 3,
+                "time": "2026-03-25 08:17:28",
+                "raid_info": {
+                    "raid_id": "1",
+                }
+            }
+        }
+    ]
+   ```
+
+   ```shell
+    [
+        {
+            "alarm_id": 1015,
+            "alarm_type": "ALARM_TYPE_OCCUR",
+            "alarm_level": "MINOR_ALM",
+            "timestamp": "2026-03-25 13:35:27",
+            "alarm_info": {
+                "alarm_source": "bcm_ras_sentry",
+                "id": "0301",
+                "bmc_id": "0x01000017",
+                "level": 4,
+                "time": "2026-03-25 08:17:28",
+                "ram_info": {
+                    "ram_id": "1",
+                }
+            }
+        }
+    ]
+   ```
+
+   ```shell
+    [
+        {
+            "alarm_id": 1015,
+            "alarm_type": "ALARM_TYPE_OCCUR",
+            "alarm_level": "MINOR_ALM",
+            "timestamp": "2026-03-25 13:35:27",
+            "alarm_info": {
+                "alarm_source": "bcm_ras_sentry",
+                "id": "0401",
+                "bmc_id": "0x0000001D",
+                "level": 4,
+                "time": "2026-03-25 08:17:28",
+                "cpu_info": {
+                    "cpu_id": "1",
+                }
+            }
+        }
+    ]
+   ```
+
    输出结果各字段介绍：
 
    | 字段 | 描述 |
@@ -138,13 +223,34 @@ bmc_events=0101,0102
    | level | 告警等级，1-轻微，2-正常，3-严重，4-紧急 |
    | time | 告警产生的时间 |
    | disk_info | 硬盘内容，硬盘类型告警特有字段 |
+   | raid_info | RAID卡内容，RAID卡类型告警特有字段 |
+   | ram_info | 内存内容，内存类型告警特有字段 |
+   | cpu_info | CPU内容，CPU类型告警特有字段 |
 
-   disk info各字段介绍：
+   disk_info各字段介绍：
 
    | 字段 | 描述 |
    | --- | --- |
    | physical_disk | 物理盘SN号，标识唯一物理盘 |
    | logical_disk | 逻辑盘符，表示os上显示的硬盘盘符，如sda |
+
+   raid_info各字段介绍：
+
+   | 字段 | 描述 |
+   | --- | --- |
+   | raid_id | RAID卡编号 |
+
+   ram_info各字段介绍：
+
+   | 字段 | 描述 |
+   | --- | --- |
+   | ram_id | 内存条编号 |
+
+   cpu_info各字段介绍：
+
+   | 字段 | 描述 |
+   | --- | --- |
+   | cpu_id | CPU编号 |
 
 4. 停止巡检
 
