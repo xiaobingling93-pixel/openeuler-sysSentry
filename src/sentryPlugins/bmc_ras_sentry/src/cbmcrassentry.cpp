@@ -22,8 +22,7 @@ namespace BMCRasSentryPlu {
 
 const int RESP_HEADER_SIZE = 7;
 const int EVENT_SIZE = 15;
-const uint32_t ALARM_OCCUR_CODE = 0x02000039;
-const uint32_t ALARM_CLEAR_CODE = 0x0200003A;
+const uint32_t BMC_BLOCK_IO_CODE = 0x02000039;
 const std::string BMC_TASK_NAME = "bmc_ras_sentry";
 const std::string GET_BMCIP_CMD = "ipmitool lan print";
 const std::string IPMI_KEY_IP_ADDR = "IP Address";
@@ -291,16 +290,19 @@ std::pair<std::string, std::vector<PhysicalDiskAddress> > CBMCRasSentry::GetHira
     auto VDInfoObj = json_object_object_get(VDInfoDataObj, HIRAIDADM_VD_INFO.c_str());
     if (!json_object_is_type(VDInfoObj, json_type_object)) {
         BMC_LOG_WARNING << HIRAIDADM_VD_INFO << " obj can't be find, cmd: " << getVdInfoCmd;
+        json_object_put(VDInfoDataObj);
         return {"", {}};
     }
 
     auto VDNameObj = json_object_object_get(VDInfoObj, HIRAIDADM_VD_NAME.c_str());
     if (!json_object_is_type(VDNameObj, json_type_string)) {
         BMC_LOG_WARNING << HIRAIDADM_VD_NAME << " string can't be find, cmd: " << getVdInfoCmd;
+        json_object_put(VDInfoDataObj);
         return {"", {}};
     }
     auto VDNameResult = SplitString(json_object_get_string(VDNameObj), "/");
     VDName = VDNameResult.back();
+    json_object_put(VDInfoDataObj);
 
     auto getPDListCmd = format_string(HIRAIDADM_GET_PD_LIST_CMD, ctrlId, VDId);
     std::vector<std::string> PDListInfo;
@@ -347,6 +349,7 @@ std::map<std::string, std::vector<PhysicalDiskAddress> > CBMCRasSentry::GetHirai
     auto VDListObj = json_object_object_get(dataObj, HIRAIDADM_VD_LIST.c_str());
     if (!json_object_is_type(VDListObj, json_type_array)) {
         BMC_LOG_WARNING << HIRAIDADM_VD_LIST << " array can't be find, cmd: " << getVDListCmd;
+        json_object_put(dataObj);
         return {};
     }
 
@@ -368,6 +371,7 @@ std::map<std::string, std::vector<PhysicalDiskAddress> > CBMCRasSentry::GetHirai
         VDInfos[VDName] = VDInfoDetail.second;
     }
 
+    json_object_put(dataObj);
     return VDInfos;
 }
 
@@ -387,16 +391,19 @@ std::vector<std::string> CBMCRasSentry::GetHiraidadmDiskSN(int ctrlId,
         auto PDInfoObj = json_object_object_get(dataObj, HIRAIDADM_PD_INFO.c_str());
         if (!json_object_is_type(PDInfoObj, json_type_object)) {
             BMC_LOG_WARNING << HIRAIDADM_PD_INFO << " obj can't be find, cmd: " << getPDInfoCmd;
+            json_object_put(dataObj);
             continue;
         }
 
         auto PDSNObj = json_object_object_get(PDInfoObj, HIRAIDADM_PD_SN.c_str());
         if (!json_object_is_type(PDSNObj, json_type_string)) {
             BMC_LOG_WARNING << HIRAIDADM_PD_SN << " string can't be find, cmd: " << getPDInfoCmd;
+            json_object_put(dataObj);
             continue;
         }
 
         PDSNs.push_back(json_object_get_string(PDSNObj));
+        json_object_put(dataObj);
     }
 
     return PDSNs;
@@ -412,6 +419,7 @@ void CBMCRasSentry::GetHiraidadmRaidInfo()
     auto ctrlListObj = json_object_object_get(dataObj, HIRAIDADM_CTRL_LIST.c_str());
     if (!json_object_is_type(ctrlListObj, json_type_array)) {
         BMC_LOG_WARNING << HIRAIDADM_CTRL_LIST << " array can't be find, cmd: " << HIRAIDADM_GET_CTRL_LIST_CMD;
+        json_object_put(dataObj);
         return;
     }
 
@@ -440,6 +448,7 @@ void CBMCRasSentry::GetHiraidadmRaidInfo()
     }
 
     m_diskSNToBlockNames.push_back(diskSNToBlockName);
+    json_object_put(dataObj);
 }
 
 void CBMCRasSentry::SetDiskSNToBlockName(const std::string& VDName,
@@ -570,7 +579,7 @@ void CBMCRasSentry::PraseBMCEvents(const std::string& bmc_events_value)
 
 bool CBMCRasSentry::IsOpenBMCBlockIo()
 {
-    auto it = m_BMCOpenEvents.find(ALARM_OCCUR_CODE);
+    auto it = m_BMCOpenEvents.find(BMC_BLOCK_IO_CODE);
     if (it == m_BMCOpenEvents.end()) {
         return false;
     } else {
@@ -839,7 +848,6 @@ int CBMCRasSentry::QueryEvents()
 {
     uint16_t currentIndex = 0;
     int ret = BMCPLU_SUCCESS;
-    m_currentDeviceIds.clear();
 
     while (true) {
         std::string cmd = BuildIPMICommand(currentIndex, IPMI_REQUEST_ALL_TYPE, IPMI_REQUEST_ALL_TYPE);
@@ -877,16 +885,6 @@ int CBMCRasSentry::QueryEvents()
         }
     }
 
-    if (ret == BMCPLU_SUCCESS) {
-        for (const auto& id : m_lastDeviceIds) {
-            if (m_currentDeviceIds.find(id) == m_currentDeviceIds.end()) {
-                uint32_t timeNow = static_cast<uint32_t>(std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
-                IPMIEvent clearEvent = {ALARM_CLEAR_CODE, timeNow, 0, 0x02, id, true};
-                ReportAlarm(clearEvent);
-            }
-        }
-        m_lastDeviceIds = m_currentDeviceIds;
-    }
     return ret;
 }
 
@@ -1046,13 +1044,6 @@ void CBMCRasSentry::ReportAlarm(const IPMIEvent& event)
         return;
     }
     std::string event_id = it->second;
-
-    if (event.alarmTypeCode == ALARM_OCCUR_CODE) {
-        ucAlarmType = ALARM_TYPE_OCCUR;
-        m_currentDeviceIds.insert(event.deviceId);
-    } else if (event.alarmTypeCode == ALARM_CLEAR_CODE) {
-        ucAlarmType = ALARM_TYPE_RECOVER;
-    }
 
     json_object* jObject = json_object_new_object();
     std::string bmcId = uint32_to_hex_string(event.alarmTypeCode);

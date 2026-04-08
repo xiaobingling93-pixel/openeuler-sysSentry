@@ -94,8 +94,6 @@ private:
     std::mutex m_mutex;
     std::condition_variable m_cv;
     std::string m_bmcIp;
-    std::set<uint8_t> m_lastDeviceIds;
-    std::set<uint8_t> m_currentDeviceIds;
     std::vector<DiskSNToBlockName> m_diskSNToBlockNames;
     std::map<uint32_t, std::string> m_BMCOpenEvents;
     std::map<std::string, BMCEventMap> m_BMCEvents;
