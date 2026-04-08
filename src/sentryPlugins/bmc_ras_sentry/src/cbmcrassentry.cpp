@@ -624,15 +624,15 @@ void CBMCRasSentry::SentryWorker()
     int ret = BMCPLU_SUCCESS;
     while (m_running) {
         std::unique_lock<std::mutex> lock(m_mutex);
+        ret = QueryEvents();
+        if (ret != BMCPLU_SUCCESS) {
+             break;
+        }
         m_cv.wait_for(lock, std::chrono::seconds(m_patrolSeconds), [this] {
             return !m_running;
         });
 
         if (!m_running) {
-            break;
-        }
-        ret = QueryEvents();
-        if (ret != BMCPLU_SUCCESS) {
             break;
         }
     }
