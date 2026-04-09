@@ -17,6 +17,7 @@
 #include <set>
 #include <map>
 #include <condition_variable>
+#include "common.h"
 
 namespace BMCRasSentryPlu {
 
@@ -68,11 +69,17 @@ private:
     void InitBMCEvents();
     void OpenAllBMCEvents();
     void OpenBMCEvents(const std::string& event_id);
+    bool IsOpenBMCBlockIo();
     void SentryWorker();
     void GetBMCIp();
+    std::string BuilSetBMCBlockIoCommand(uint8_t blockType, bool openFlag);
+    std::string BuilGetBMCBlockIoCommand(uint8_t blockType);
+    void OpenBMCBlockIo(uint8_t blockType);
+    void CloseBMCBlockIo(uint8_t blockType);
     std::string BuildDiskSNIPMICommand(const IPMIEvent& event, uint8_t startIndex);
     std::string GetDiskSNByIPMI(const IPMIEvent& event);
     void ReportAlarm(const IPMIEvent& event);
+    void SetHardwareInfo(json_object* jObject, const std::string& eventId, const IPMIEvent& event);
     void ReportResult(int resultLevel, const std::string& msg);
     int QueryEvents();
     std::string BuildIPMICommand(uint16_t startIndex, std::string severity, std::string subjectType);
@@ -87,12 +94,13 @@ private:
     std::mutex m_mutex;
     std::condition_variable m_cv;
     std::string m_bmcIp;
-    std::set<uint8_t> m_lastDeviceIds;
-    std::set<uint8_t> m_currentDeviceIds;
     std::vector<DiskSNToBlockName> m_diskSNToBlockNames;
     std::map<uint32_t, std::string> m_BMCOpenEvents;
-    BMCEventMap m_BMCBlockEvents;
     std::map<std::string, BMCEventMap> m_BMCEvents;
+    std::map<uint8_t, bool> m_BMCBlockIoChange = {
+        {0x00, false},
+        {0x01, false}
+    };
     int m_patrolSeconds;
     int m_alarmId;
 };

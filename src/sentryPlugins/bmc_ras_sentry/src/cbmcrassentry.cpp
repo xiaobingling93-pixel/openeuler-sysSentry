@@ -15,7 +15,6 @@
 extern "C" {
 #include "register_xalarm.h"
 }
-#include "common.h"
 #include "configure.h"
 #include "logger.h"
 
@@ -23,8 +22,7 @@ namespace BMCRasSentryPlu {
 
 const int RESP_HEADER_SIZE = 7;
 const int EVENT_SIZE = 15;
-const uint32_t ALARM_OCCUR_CODE = 0x02000039;
-const uint32_t ALARM_CLEAR_CODE = 0x0200003A;
+const uint32_t BMC_BLOCK_IO_CODE = 0x02000039;
 const std::string BMC_TASK_NAME = "bmc_ras_sentry";
 const std::string GET_BMCIP_CMD = "ipmitool lan print";
 const std::string IPMI_KEY_IP_ADDR = "IP Address";
@@ -39,6 +37,12 @@ const std::string JSON_KEY_TIME = "time";
 const std::string JSON_KEY_DISK_INFO = "disk_info";
 const std::string JSON_KEY_PHYSICAL_DISK = "physical_disk";
 const std::string JSON_KEY_LOGICAL_DISK = "logical_disk";
+const std::string JSON_KEY_RAID_INFO = "raid_info";
+const std::string JSON_KEY_RAID_ID = "raid_id";
+const std::string JSON_KEY_RAM_INFO = "ram_info";
+const std::string JSON_KEY_RAM_ID = "ram_id";
+const std::string JSON_KEY_CPU_INFO = "cpu_info";
+const std::string JSON_KEY_CPU_ID = "cpu_id";
 const std::string JSON_KEY_MSG = "msg";
 const std::string MOD_SECTION_COMMON = "common";
 const std::string MOD_COMMON_ALARM_ID = "alarm_id";
@@ -48,7 +52,6 @@ const std::string IPMI_REQUEST_HEAD = "ipmitool raw 0x30 0x94";
 const std::string IPMI_REQUEST_KUNPENG_ID = "0xDB 0x07 0x00";
 const std::string IPMI_REQUEST_GET_CONCISE_EVENT = "0x40 0x00";
 const std::string IPMI_REQUEST_ALL_TYPE = "0xFF";
-const std::string IPMI_REQUEST_BLOCK_ID = "0x02";
 const std::string LSBLK_GET_SN_AND_NAME = "lsblk -o NAME,SERIAL";
 const std::string STORCLI_GET_CTRL_INFO_CMD = "storcli64 /call show";
 const std::string STORCLI_GET_VD_INFO_CMD = "storcli64 /c%s/v%s show all";
@@ -102,6 +105,10 @@ CBMCRasSentry::CBMCRasSentry() :
 
 CBMCRasSentry::~CBMCRasSentry()
 {
+    for (const auto & it : m_BMCBlockIoChange) {
+        if (it.second)
+            CloseBMCBlockIo(it.first);
+    }
 }
 
 void CBMCRasSentry::GetDiskPassthroughInfo()
@@ -283,16 +290,19 @@ std::pair<std::string, std::vector<PhysicalDiskAddress> > CBMCRasSentry::GetHira
     auto VDInfoObj = json_object_object_get(VDInfoDataObj, HIRAIDADM_VD_INFO.c_str());
     if (!json_object_is_type(VDInfoObj, json_type_object)) {
         BMC_LOG_WARNING << HIRAIDADM_VD_INFO << " obj can't be find, cmd: " << getVdInfoCmd;
+        json_object_put(VDInfoDataObj);
         return {"", {}};
     }
 
     auto VDNameObj = json_object_object_get(VDInfoObj, HIRAIDADM_VD_NAME.c_str());
     if (!json_object_is_type(VDNameObj, json_type_string)) {
         BMC_LOG_WARNING << HIRAIDADM_VD_NAME << " string can't be find, cmd: " << getVdInfoCmd;
+        json_object_put(VDInfoDataObj);
         return {"", {}};
     }
     auto VDNameResult = SplitString(json_object_get_string(VDNameObj), "/");
     VDName = VDNameResult.back();
+    json_object_put(VDInfoDataObj);
 
     auto getPDListCmd = format_string(HIRAIDADM_GET_PD_LIST_CMD, ctrlId, VDId);
     std::vector<std::string> PDListInfo;
@@ -339,6 +349,7 @@ std::map<std::string, std::vector<PhysicalDiskAddress> > CBMCRasSentry::GetHirai
     auto VDListObj = json_object_object_get(dataObj, HIRAIDADM_VD_LIST.c_str());
     if (!json_object_is_type(VDListObj, json_type_array)) {
         BMC_LOG_WARNING << HIRAIDADM_VD_LIST << " array can't be find, cmd: " << getVDListCmd;
+        json_object_put(dataObj);
         return {};
     }
 
@@ -360,6 +371,7 @@ std::map<std::string, std::vector<PhysicalDiskAddress> > CBMCRasSentry::GetHirai
         VDInfos[VDName] = VDInfoDetail.second;
     }
 
+    json_object_put(dataObj);
     return VDInfos;
 }
 
@@ -379,16 +391,19 @@ std::vector<std::string> CBMCRasSentry::GetHiraidadmDiskSN(int ctrlId,
         auto PDInfoObj = json_object_object_get(dataObj, HIRAIDADM_PD_INFO.c_str());
         if (!json_object_is_type(PDInfoObj, json_type_object)) {
             BMC_LOG_WARNING << HIRAIDADM_PD_INFO << " obj can't be find, cmd: " << getPDInfoCmd;
+            json_object_put(dataObj);
             continue;
         }
 
         auto PDSNObj = json_object_object_get(PDInfoObj, HIRAIDADM_PD_SN.c_str());
         if (!json_object_is_type(PDSNObj, json_type_string)) {
             BMC_LOG_WARNING << HIRAIDADM_PD_SN << " string can't be find, cmd: " << getPDInfoCmd;
+            json_object_put(dataObj);
             continue;
         }
 
         PDSNs.push_back(json_object_get_string(PDSNObj));
+        json_object_put(dataObj);
     }
 
     return PDSNs;
@@ -404,6 +419,7 @@ void CBMCRasSentry::GetHiraidadmRaidInfo()
     auto ctrlListObj = json_object_object_get(dataObj, HIRAIDADM_CTRL_LIST.c_str());
     if (!json_object_is_type(ctrlListObj, json_type_array)) {
         BMC_LOG_WARNING << HIRAIDADM_CTRL_LIST << " array can't be find, cmd: " << HIRAIDADM_GET_CTRL_LIST_CMD;
+        json_object_put(dataObj);
         return;
     }
 
@@ -432,6 +448,7 @@ void CBMCRasSentry::GetHiraidadmRaidInfo()
     }
 
     m_diskSNToBlockNames.push_back(diskSNToBlockName);
+    json_object_put(dataObj);
 }
 
 void CBMCRasSentry::SetDiskSNToBlockName(const std::string& VDName,
@@ -449,7 +466,7 @@ void CBMCRasSentry::SetDiskSNToBlockName(const std::string& VDName,
 
 void CBMCRasSentry::InitBMCEvents()
 {
-    m_BMCBlockEvents = {
+    BMCEventMap BMCBlockEvents = {
         {"0101", 0x02000009},
         {"0102", 0x2B000003},
         {"0103", 0x02000013},
@@ -464,8 +481,27 @@ void CBMCRasSentry::InitBMCEvents()
         {"0112", 0x0200001D}
     };
 
+    BMCEventMap BMCRaidEvents = {
+        {"0201", 0x0800004B},
+        {"0202", 0x0200000B}
+    };
+
+    BMCEventMap BMCRamEvents = {
+        {"0301", 0x01000017},
+        {"0302", 0x0100003D},
+        {"0303", 0x0100005B},
+        {"0304", 0x01000079}
+    };
+
+    BMCEventMap BMCCpuEvents = {
+        {"0401", 0x0000001D}
+    };
+
     m_BMCEvents = {
-        {"01", m_BMCBlockEvents}
+        {"01", BMCBlockEvents},
+        {"02", BMCRaidEvents},
+        {"03", BMCRamEvents},
+        {"04", BMCCpuEvents}
     };
 }
 
@@ -523,10 +559,31 @@ void CBMCRasSentry::PraseBMCEvents(const std::string& bmc_events_value)
     for (const auto& event_id : result) {
         if (event_id == ALL_BMC_EVENTS) {
             OpenAllBMCEvents();
-            return;
+            break;
         } else {
             OpenBMCEvents(event_id);
         }
+    }
+ 
+    if (IsOpenBMCBlockIo()) {
+        for (const auto & it : m_BMCBlockIoChange) {
+            OpenBMCBlockIo(it.first);
+        }
+    } else {
+        for (const auto & it : m_BMCBlockIoChange) {
+            if (it.second)
+                CloseBMCBlockIo(it.first);
+        }
+    }
+}
+
+bool CBMCRasSentry::IsOpenBMCBlockIo()
+{
+    auto it = m_BMCOpenEvents.find(BMC_BLOCK_IO_CODE);
+    if (it == m_BMCOpenEvents.end()) {
+        return false;
+    } else {
+        return true;
     }
 }
 
@@ -576,15 +633,15 @@ void CBMCRasSentry::SentryWorker()
     int ret = BMCPLU_SUCCESS;
     while (m_running) {
         std::unique_lock<std::mutex> lock(m_mutex);
+        ret = QueryEvents();
+        if (ret != BMCPLU_SUCCESS) {
+             break;
+        }
         m_cv.wait_for(lock, std::chrono::seconds(m_patrolSeconds), [this] {
             return !m_running;
         });
 
         if (!m_running) {
-            break;
-        }
-        ret = QueryEvents();
-        if (ret != BMCPLU_SUCCESS) {
             break;
         }
     }
@@ -619,6 +676,84 @@ void CBMCRasSentry::GetBMCIp()
         }
     }
     return;
+}
+
+std::string CBMCRasSentry::BuilSetBMCBlockIoCommand(uint8_t blockType, bool openFlag)
+{
+    const std::string ipmiReqHead = "ipmitool raw 0x30 0x93";
+    const std::string reqId = "0x3E";
+    const std::string parameterSelector = "0x00 0x19";
+    const std::string blcokSelector = "0xFF";
+    const std::string extrenSelector = "0xFF";
+    const std::string frameType = "0x00";
+    const std::string writingOffset = "0x00 0x00";
+    const std::string writingLength = "0x01";
+    std::string parameterData;
+    if (openFlag) {
+        parameterData = "0x01";
+    } else {
+        parameterData = "0x00";
+    }
+    std::ostringstream cmdStream;
+    cmdStream << ipmiReqHead
+              << " " << IPMI_REQUEST_KUNPENG_ID
+              << " " << reqId
+              << " " << parameterSelector
+              << " " << ByteToHex(blockType)
+              << " " << blcokSelector
+              << " " << extrenSelector
+              << " " << frameType
+              << " " << writingOffset
+              << " " << writingLength
+              << " " << parameterData;
+    return cmdStream.str();
+}
+
+std::string CBMCRasSentry::BuilGetBMCBlockIoCommand(uint8_t blockType)
+{
+    const std::string ipmiReqHead = "ipmitool raw 0x30 0x93";
+    const std::string reqId = "0x3D";
+    const std::string parameterSelector = "0x00 0x19";
+    const std::string blcokSelector = "0xFF";
+    const std::string extrenSelector = "0xFF";
+    const std::string readingOffset = "0x00 0x00";
+    const std::string readingLength = "0xFF";
+    std::ostringstream cmdStream;
+    cmdStream << ipmiReqHead
+              << " " << IPMI_REQUEST_KUNPENG_ID
+              << " " << reqId
+              << " " << parameterSelector
+              << " " << ByteToHex(blockType)
+              << " " << blcokSelector
+              << " " << extrenSelector
+              << " " << readingOffset
+              << " " << readingLength;
+    return cmdStream.str();
+}
+
+void CBMCRasSentry::OpenBMCBlockIo(uint8_t blockType)
+{
+    auto getCmd = BuilGetBMCBlockIoCommand(blockType);
+    auto hexBytes = ExecuteIPMICommand(getCmd);
+    if (hexBytes.empty() || hexBytes.size() < 5) {
+         BMC_LOG_ERROR << "get bmc block io failed, cmd: " << getCmd;
+         return;
+    }
+
+    if (hexBytes[4] == "01") {
+        return;
+    }
+
+    auto setCmd = BuilSetBMCBlockIoCommand(blockType, true);
+    ExecuteIPMICommand(setCmd);
+    m_BMCBlockIoChange[blockType] = true;
+}
+
+void CBMCRasSentry::CloseBMCBlockIo(uint8_t blockType)
+{
+    auto Cmd = BuilSetBMCBlockIoCommand(blockType, false);
+    ExecuteIPMICommand(Cmd);
+    m_BMCBlockIoChange[blockType] = false;
 }
 
 std::string CBMCRasSentry::BuildDiskSNIPMICommand(const IPMIEvent& event, uint8_t startIndex)
@@ -713,10 +848,9 @@ int CBMCRasSentry::QueryEvents()
 {
     uint16_t currentIndex = 0;
     int ret = BMCPLU_SUCCESS;
-    m_currentDeviceIds.clear();
 
     while (true) {
-        std::string cmd = BuildIPMICommand(currentIndex, IPMI_REQUEST_ALL_TYPE, IPMI_REQUEST_BLOCK_ID);
+        std::string cmd = BuildIPMICommand(currentIndex, IPMI_REQUEST_ALL_TYPE, IPMI_REQUEST_ALL_TYPE);
         std::vector<std::string> hexBytes = ExecuteIPMICommand(cmd);
         if (hexBytes.empty()) {
             break;
@@ -751,16 +885,6 @@ int CBMCRasSentry::QueryEvents()
         }
     }
 
-    if (ret == BMCPLU_SUCCESS) {
-        for (const auto& id : m_lastDeviceIds) {
-            if (m_currentDeviceIds.find(id) == m_currentDeviceIds.end()) {
-                uint32_t timeNow = static_cast<uint32_t>(std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
-                IPMIEvent clearEvent = {ALARM_CLEAR_CODE, timeNow, 0, 0x02, id, true};
-                ReportAlarm(clearEvent);
-            }
-        }
-        m_lastDeviceIds = m_currentDeviceIds;
-    }
     return ret;
 }
 
@@ -921,34 +1045,7 @@ void CBMCRasSentry::ReportAlarm(const IPMIEvent& event)
     }
     std::string event_id = it->second;
 
-    if (event.alarmTypeCode == ALARM_OCCUR_CODE) {
-        ucAlarmType = ALARM_TYPE_OCCUR;
-        m_currentDeviceIds.insert(event.deviceId);
-    } else if (event.alarmTypeCode == ALARM_CLEAR_CODE) {
-        ucAlarmType = ALARM_TYPE_RECOVER;
-    }
-
-    std::string diskSN = GetDiskSNByIPMI(event);
-    std::string blockNameStr = "";
-    if (diskSN == "") {
-        diskSN = std::to_string(event.deviceId);
-    } else {
-        for (const auto& diskSNToBlockName : m_diskSNToBlockNames) {
-            if (diskSNToBlockName.find(diskSN) != diskSNToBlockName.end()) {
-                auto blockNames = diskSNToBlockName.find(diskSN)->second;
-                for (const auto& blockName : blockNames) {
-                    blockNameStr += blockName + ", ";
-                }
-                if (blockNameStr.size() >= 2)
-                    blockNameStr.erase(blockNameStr.size() - 2);
-
-                break;
-            }
-        }
-    }
-
     json_object* jObject = json_object_new_object();
-    json_object* diskInfo = json_object_new_object();
     std::string bmcId = uint32_to_hex_string(event.alarmTypeCode);
     std::string time = unit32_to_local_time(event.timestamp);
     json_object_object_add(jObject, JSON_KEY_ALARM_SOURCE.c_str(), json_object_new_string(BMC_TASK_NAME.c_str()));
@@ -957,9 +1054,7 @@ void CBMCRasSentry::ReportAlarm(const IPMIEvent& event)
     json_object_object_add(jObject, JSON_KEY_BMC_ID.c_str(), json_object_new_string(bmcId.c_str()));
     json_object_object_add(jObject, JSON_KEY_LEVEL.c_str(), json_object_new_int(event.severity));
     json_object_object_add(jObject, JSON_KEY_TIME.c_str(), json_object_new_string(time.c_str()));
-    json_object_object_add(diskInfo, JSON_KEY_PHYSICAL_DISK.c_str(), json_object_new_string(diskSN.c_str()));
-    json_object_object_add(diskInfo, JSON_KEY_LOGICAL_DISK.c_str(), json_object_new_string(blockNameStr.c_str()));
-    json_object_object_add(jObject, JSON_KEY_DISK_INFO.c_str(), diskInfo);
+    SetHardwareInfo(jObject, event_id, event);
     const char *jData = json_object_to_json_string(jObject);
     int ret = xalarm_Report(m_alarmId, ucAlarmLevel, ucAlarmType, const_cast<char*>(jData));
     if (ret != RETURN_CODE_SUCCESS) {
@@ -967,6 +1062,51 @@ void CBMCRasSentry::ReportAlarm(const IPMIEvent& event)
     }
     json_object_put(jObject);
     return;
+}
+
+void CBMCRasSentry::SetHardwareInfo(json_object* jObject, const std::string& eventId, const IPMIEvent& event)
+{
+    const std::string eventType = eventId.substr(2);
+    if (eventType == "01") {
+        std::string diskSN = GetDiskSNByIPMI(event);
+        std::string blockNameStr = "";
+        if (diskSN == "") {
+            diskSN = std::to_string(event.deviceId);
+        } else {
+            for (const auto& diskSNToBlockName : m_diskSNToBlockNames) {
+                if (diskSNToBlockName.find(diskSN) != diskSNToBlockName.end()) {
+                    auto blockNames = diskSNToBlockName.find(diskSN)->second;
+                    for (const auto& blockName : blockNames) {
+                        blockNameStr += blockName + ", ";
+                    }
+                    if (blockNameStr.size() >= 2)
+                        blockNameStr.erase(blockNameStr.size() - 2);
+
+                    break;
+                }
+            }
+        }
+        json_object* diskInfo = json_object_new_object();
+        json_object_object_add(diskInfo, JSON_KEY_PHYSICAL_DISK.c_str(), json_object_new_string(diskSN.c_str()));
+        json_object_object_add(diskInfo, JSON_KEY_LOGICAL_DISK.c_str(), json_object_new_string(blockNameStr.c_str()));
+        json_object_object_add(jObject, JSON_KEY_DISK_INFO.c_str(), diskInfo);
+        return;
+    } else if (eventType == "02") {
+        json_object* raidInfo = json_object_new_object();
+        json_object_object_add(raidInfo, JSON_KEY_RAID_ID.c_str(), json_object_new_string(std::to_string(event.deviceId).c_str()));
+        json_object_object_add(jObject, JSON_KEY_RAID_INFO.c_str(), raidInfo);
+        return;
+    } else if (eventType == "03") {
+        json_object* ramInfo = json_object_new_object();
+        json_object_object_add(ramInfo, JSON_KEY_RAM_ID.c_str(), json_object_new_string(std::to_string(event.deviceId).c_str()));
+        json_object_object_add(jObject, JSON_KEY_RAM_INFO.c_str(), ramInfo);
+        return;
+    } else if (eventType == "04") {
+        json_object* cpuInfo = json_object_new_object();
+        json_object_object_add(cpuInfo, JSON_KEY_CPU_ID.c_str(), json_object_new_string(std::to_string(event.deviceId).c_str()));
+        json_object_object_add(jObject, JSON_KEY_CPU_INFO.c_str(), cpuInfo);
+        return;
+    }
 }
 
 void CBMCRasSentry::ReportResult(int resultLevel, const std::string& msg)

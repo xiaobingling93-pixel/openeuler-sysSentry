@@ -379,8 +379,12 @@ json_object* ParseHiraidadmCmd(const std::string& cmd)
     auto dataObj = json_object_object_get(rootObj, "CommandData");
     if (!json_object_is_type(dataObj, json_type_object)) {
         BMC_LOG_WARNING << "CommandData object can't be find, cmd: " << cmd;
+        json_object_put(rootObj);
         return NULL;
     }
+
+    json_object_get(dataObj);
+    json_object_put(rootObj);
 
     return dataObj;
 }
