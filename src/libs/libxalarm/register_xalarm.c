@@ -64,6 +64,7 @@ struct alarm_register_info g_register_info = {{0}, -1, ULONG_MAX, false, NULL, 1
 static bool id_is_registered(unsigned short alarm_id)
 {
     if (alarm_id < MIN_ALARM_ID || alarm_id > MAX_ALARM_ID) {
+        printf("%s: invalid alarm_id\n", __func__);
         return false;
     }
 
@@ -187,11 +188,13 @@ static bool alarm_subscription_verify(struct alarm_subscription_info id_filter)
     int i;
 
     if (id_filter.len > MAX_NUM_OF_ALARM_ID) {
+        printf("%s: invalid len\n", __func__);
         return false;
     }
 
     for (i = 0; i < id_filter.len; i++) {
         if (id_filter.id_list[i] < MIN_ALARM_ID || id_filter.id_list[i] > MAX_ALARM_ID) {
+            printf("%s: invalid alarm id\n", __func__);
             return false;
         }
     }
@@ -670,12 +673,14 @@ int xalarm_register_event(struct alarm_register **register_info, struct alarm_su
     int i;
     // check whether id_filter is valid
     if (register_info == NULL || !alarm_subscription_verify(id_filter)) {
+        printf("%s: invalid params\n", __func__);
         return -EINVAL;
     }
 
     *register_info = (struct alarm_register *)malloc(sizeof(struct alarm_register));
     // failed to malloc memory for register_info struct
     if (*register_info == NULL) {
+        printf("%s: malloc failed\n", __func__);
         return -ENOMEM;
     }
 
@@ -699,6 +704,7 @@ int xalarm_register_event(struct alarm_register **register_info, struct alarm_su
 void xalarm_unregister_event(struct alarm_register **register_info)
 {
     if (register_info == NULL || *register_info == NULL) {
+        printf("%s: invalid params\n", __func__);
         return;
     }
     // close client fd socket connection resource
@@ -717,6 +723,7 @@ int xalarm_get_event(struct alarm_msg* msg, struct alarm_register *register_info
     int ret = 0;
     
     if (msg == NULL || register_info == NULL) {
+        printf("%s: invalid params\n", __func__);
         return -EINVAL;
     }
 
