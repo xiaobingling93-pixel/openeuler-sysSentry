@@ -32,7 +32,7 @@
 #define ID_CAPACITY 10
 #define PERM_STRING_LEN 8
 
-static int find_processes_by_device(const char *obmm_shmdev_name, pid_t **pids, int *count)
+static int find_processes_by_device(const char *obmm_shmdev_name, pid_t **pids)
 {
     char command[COMMAND_STR_MAX_LEN];
     FILE *fp;
@@ -44,6 +44,7 @@ static int find_processes_by_device(const char *obmm_shmdev_name, pid_t **pids, 
         logging_error("obmm_shmdev_name is empty\n");
         return -1;
     }
+
     snprintf(command, sizeof(command), "/usr/bin/lsof \"%s\" | awk 'NR > 1 {print $2}'", obmm_shmdev_name);
 
     *pids = malloc(capacity * sizeof(pid_t));
@@ -62,6 +63,10 @@ static int find_processes_by_device(const char *obmm_shmdev_name, pid_t **pids, 
 
     while (fgets(line, sizeof(line), fp)) {
         pid_t pid = atoi(line);
+        if (pid <= 0) {
+            logging_warn("invalid pid line : [%s]\n", line);
+            break;
+        }
 
         int duplicate = 0;
         for (int i = 0; i < found; i++) {
@@ -89,9 +94,11 @@ static int find_processes_by_device(const char *obmm_shmdev_name, pid_t **pids, 
         }
     }
 
+    if (found == 0) {
+        logging_info("No program that opens %s is found.\n", obmm_shmdev_name);
+    }
     pclose(fp);
-    *count = found;
-    return 0;
+    return found;
 }
 
 static bool is_accessing_faulty_address(const char *obmm_shmdev_name, const char *tid_maps_str, unsigned long obmm_offset, unsigned long *virt_addr)
@@ -231,14 +238,16 @@ int find_and_send_sigbus_to_thread(mem_id memid, unsigned long obmm_offset)
 
     snprintf(obmm_shmdev_name, sizeof(obmm_shmdev_name), "/dev/obmm_shmdev%lu", memid);
 
-    if (find_processes_by_device(obmm_shmdev_name, &pids, &pid_count) != 0) {
-        logging_error("find_processes_by_device failed\n");
+    pid_count = find_processes_by_device(obmm_shmdev_name, &pids);
+    if (pid_count <= 0) {
+        logging_info("No pid is found, unable to send SIGBUS signal\n");
         if (pids) {
             free(pids);
         }
-        return -1;
+        return 0;
     }
 
+    bool is_found_tid_to_kill = false;
     for (int pid_idx = 0; pid_idx < pid_count; pid_idx++) {
         unsigned long virt_addr;
         pid_t *tids = NULL;
@@ -246,6 +255,7 @@ int find_and_send_sigbus_to_thread(mem_id memid, unsigned long obmm_offset)
         if (check_process_mapping(obmm_shmdev_name, pids[pid_idx], obmm_offset, &virt_addr, &tids, &tid_count) == 0) {
             for (int tid_idx = 0; tid_idx < tid_count; tid_idx++) {
                 logging_info("Sending SIGBUS to thread %d for process %d\n", tids[tid_idx], pids[pid_idx]);
+                is_found_tid_to_kill = true;
                 send_sigbus_to_thread(tids[tid_idx], virt_addr);
             }
         }
@@ -253,7 +263,9 @@ int find_and_send_sigbus_to_thread(mem_id memid, unsigned long obmm_offset)
             free(tids);
         }
     }
-
+    if (!is_found_tid_to_kill) {
+        logging_info("No tid is found, unable to send SIGBUS signal\n");
+    }
     if (pids) {
         free(pids);
     }
