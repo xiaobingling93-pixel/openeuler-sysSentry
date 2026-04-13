@@ -124,7 +124,7 @@ if __name__ == "__main__":
 开发环境还需要安装libxalarm-devel包（构建依赖，非运行依赖）：
 
 ```shell
-[root@openEuler ~]# yum install -y libxalam-devel
+[root@openEuler ~]# yum install -y libxalarm-devel
 ```
 
 ##### 单向通信接口
@@ -420,16 +420,16 @@ Type "help", "copyright", "credits" or "license" for more information.
 
 #### c巡检结果上报接口
 
-需要安装libxlaram软件包：
+需要安装libxalarm软件包：
 
 ```shell
-[root@openEuler ~]# yum install -y libxlaram
+[root@openEuler ~]# yum install -y libxalarm
 ```
 
 开发环境还需要安装libxalarm-devel包（构建依赖，非运行依赖）：
 
 ```shell
-[root@openEuler ~]# yum install -y libxalam-devel
+[root@openEuler ~]# yum install -y libxalarm-devel
 ```
 
 **结构体** RESULT_LEVEL <a id="resultlevel_c"></a>
