@@ -49,18 +49,18 @@ std::pair<std::map<std::string, uint8_t>, std::vector<std::vector<std::string> >
     const std::vector<std::string>& inputVec);
 std::map<std::string, std::string> ParseStorcliKeyToValue(const std::vector<std::string>& inputVec);
 json_object* ParseHiraidadmCmd(const std::string& cmd);
-std::string uint32_to_hex_string(uint32_t num);
-std::string unit32_to_local_time(uint32_t timestamp);
+std::string Uint32ToHexString(uint32_t num);
+std::string Unit32ToLocalTime(uint32_t timestamp);
 
 template<typename... Args>
 std::string format_string(const std::string& fmt, Args&&... args)
 {
-    int buf_size = std::snprintf(nullptr, 0, fmt.c_str(), std::forward<Args>(args)...);
-    if (buf_size < 0) {
+    int bufSize = std::snprintf(nullptr, 0, fmt.c_str(), std::forward<Args>(args)...);
+    if (bufSize < 0) {
         return "";
     }
 
-    std::string result(buf_size + 1, '\0');
+    std::string result(bufSize + 1, '\0');
     std::snprintf(&result[0], result.size(), fmt.c_str(), std::forward<Args>(args)...);
     result.pop_back();
     return result;

@@ -197,7 +197,7 @@ int ExecCommand(const std::string& cmd, std::vector<std::string>& result)
     int status = pclose(pipe);
     if (status == -1) {
         BMC_LOG_ERROR << "Cmd: " << cmd << ", pclose failed.";
-         return BMCPLU_FAILED;
+        return BMCPLU_FAILED;
     } else {
         int exitCode = WEXITSTATUS(status);
         if (exitCode != 0) {
@@ -245,17 +245,16 @@ std::vector<std::string> SplitString(const std::string& str, const std::string& 
 
     size_t pos = 0;
     while (true) {
-        size_t split_pos = str.find(split, pos);
-        std::string substring = str.substr(pos, split_pos - pos);
-
-        if (!substring.empty()) {
-            result.push_back(substring);
+        size_t splitPos = str.find(split, pos);
+        std::string subString = str.substr(pos, splitPos - pos);
+        if (!subString.empty()) {
+            result.push_back(subString);
         }
 
-        if (split_pos == std::string::npos) {
+        if (splitPos == std::string::npos) {
             break;
         }
-        pos = split_pos + split.size();
+        pos = splitPos + split.size();
     }
     return result;
 }
@@ -266,7 +265,7 @@ std::vector<std::string> SplitBySpace(const std::string& str)
     std::regex reg("\\s+");
     std::sregex_token_iterator it(str.begin(), str.end(), reg, -1);
     std::sregex_token_iterator end;
-    for(; it != end; ++it) {
+    for (; it != end; ++it) {
         std::string token = Trim(*it);
         if (!token.empty()) {
             result.push_back(token);
@@ -279,8 +278,9 @@ std::vector<std::string> SplitBySpace(const std::string& str)
 std::map<std::string, std::vector<std::string> > ParseStorcliCmd(const std::string& cmd)
 {
     std::vector<std::string> cmdOut;
-    if(ExecCommand(cmd, cmdOut))
+    if (ExecCommand(cmd, cmdOut)) {
         return {};
+    }
 
     std::map<std::string, std::vector<std::string> > result;
     int startLine = 0, endLine = 0;
@@ -295,13 +295,13 @@ std::map<std::string, std::vector<std::string> > ParseStorcliCmd(const std::stri
             endLine = i - 2;
         }
 
-        if (startLine < 0 || endLine > cmdOut.size() || startLine > endLine ) {
+        if (startLine < 0 || endLine > cmdOut.size() || startLine > endLine) {
             BMC_LOG_ERROR << "parse storcli message failed, cmd:" << cmd;
             return {};
         }
 
         std::vector<std::string> storcliInfo(cmdOut.begin() + startLine, cmdOut.begin() + endLine + 1);
-	if (startLine == 0) {
+        if (startLine == 0) {
             strKey = "head message";
         } else {
             strKey = cmdOut[startLine - 2];
@@ -362,8 +362,9 @@ std::map<std::string, std::string> ParseStorcliKeyToValue(const std::vector<std:
 json_object* ParseHiraidadmCmd(const std::string& cmd)
 {
     std::vector<std::string> cmdOut;
-    if(ExecCommand(cmd, cmdOut))
-        return NULL;
+    if (ExecCommand(cmd, cmdOut)) {
+        return nullptr;
+    }
 
     std::string jsonStr;
     for (const auto& line : cmdOut) {
@@ -373,14 +374,14 @@ json_object* ParseHiraidadmCmd(const std::string& cmd)
     auto rootObj = json_tokener_parse(jsonStr.c_str());
     if (rootObj == NULL) {
         BMC_LOG_WARNING << "parse json value failed, cmd: " << cmd;
-        return NULL;
+        return nullptr;
     }
 
     auto dataObj = json_object_object_get(rootObj, "CommandData");
     if (!json_object_is_type(dataObj, json_type_object)) {
         BMC_LOG_WARNING << "CommandData object can't be find, cmd: " << cmd;
         json_object_put(rootObj);
-        return NULL;
+        return nullptr;
     }
 
     json_object_get(dataObj);
@@ -389,7 +390,7 @@ json_object* ParseHiraidadmCmd(const std::string& cmd)
     return dataObj;
 }
 
-std::string uint32_to_hex_string(uint32_t num)
+std::string Uint32ToHexString(uint32_t num)
 {
     std::ostringstream oss;
     int length = 8;
@@ -399,19 +400,19 @@ std::string uint32_to_hex_string(uint32_t num)
     return oss.str();
 }
 
-std::string unit32_to_local_time(uint32_t timestamp)
+std::string Unit32ToLocalTime(uint32_t timestamp)
 {
     time_t t = static_cast<time_t>(timestamp);
 
-    struct tm* local_tm = localtime(&t);
-    if (local_tm == nullptr) {
+    struct tm* localTm = localtime(&t);
+    if (localTm == nullptr) {
         BMC_LOG_WARNING << "prase timestamp error, value:" << timestamp;
         return "";
     }
 
-    char time_buf[64] = {0};
-    strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", local_tm);
+    char timeBuf[64] = {0};
+    strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M:%S", localTm);
 
-    return std::string(time_buf);
+    return std::string(timeBuf);
 }
 }

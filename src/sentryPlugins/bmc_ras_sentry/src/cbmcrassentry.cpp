@@ -284,7 +284,7 @@ std::pair<std::string, std::vector<PhysicalDiskAddress> > CBMCRasSentry::GetHira
     auto getVdInfoCmd = format_string(HIRAIDADM_GET_VD_DETAIL_INFO_CMD, ctrlId, VDId);
 
     auto VDInfoDataObj = ParseHiraidadmCmd(getVdInfoCmd);
-    if (VDInfoDataObj == NULL)
+    if (VDInfoDataObj == nullptr)
         return {"", {}};
 
     auto VDInfoObj = json_object_object_get(VDInfoDataObj, HIRAIDADM_VD_INFO.c_str());
@@ -343,7 +343,7 @@ std::map<std::string, std::vector<PhysicalDiskAddress> > CBMCRasSentry::GetHirai
     auto getVDListCmd = format_string(HIRAIDADM_GET_VD_LIST_CMD, ctrlId);
 
     auto dataObj = ParseHiraidadmCmd(getVDListCmd);
-    if (dataObj == NULL)
+    if (dataObj == nullptr)
         return {};
 
     auto VDListObj = json_object_object_get(dataObj, HIRAIDADM_VD_LIST.c_str());
@@ -385,7 +385,7 @@ std::vector<std::string> CBMCRasSentry::GetHiraidadmDiskSN(int ctrlId,
             ctrlId, PDAddress.encId.c_str(), PDAddress.slotId.c_str());
 
         auto dataObj = ParseHiraidadmCmd(getPDInfoCmd);
-        if (dataObj == NULL)
+        if (dataObj == nullptr)
             continue;
 
         auto PDInfoObj = json_object_object_get(dataObj, HIRAIDADM_PD_INFO.c_str());
@@ -412,7 +412,7 @@ std::vector<std::string> CBMCRasSentry::GetHiraidadmDiskSN(int ctrlId,
 void CBMCRasSentry::GetHiraidadmRaidInfo()
 {
     auto dataObj = ParseHiraidadmCmd(HIRAIDADM_GET_CTRL_LIST_CMD);
-    if (dataObj == NULL) {
+    if (dataObj == nullptr) {
         return;
     }
 
@@ -635,7 +635,7 @@ void CBMCRasSentry::SentryWorker()
         std::unique_lock<std::mutex> lock(m_mutex);
         ret = QueryEvents();
         if (ret != BMCPLU_SUCCESS) {
-             break;
+            break;
         }
         m_cv.wait_for(lock, std::chrono::seconds(m_patrolSeconds), [this] {
             return !m_running;
@@ -736,8 +736,8 @@ void CBMCRasSentry::OpenBMCBlockIo(uint8_t blockType)
     auto getCmd = BuilGetBMCBlockIoCommand(blockType);
     auto hexBytes = ExecuteIPMICommand(getCmd);
     if (hexBytes.empty() || hexBytes.size() < 5) {
-         BMC_LOG_ERROR << "get bmc block io failed, cmd: " << getCmd;
-         return;
+        BMC_LOG_ERROR << "get bmc block io failed, cmd: " << getCmd;
+        return;
     }
 
     if (hexBytes[4] == "01") {
@@ -800,7 +800,7 @@ std::string CBMCRasSentry::GetDiskSNByIPMI(const IPMIEvent& event)
         for (int i = 4; i < hexBytes.size(); i++) {
             std::string asciiStr;
             if (HexAsciiToChar(hexBytes[i], asciiStr)) {
-            	diskSN += asciiStr;
+                diskSN += asciiStr;
             } else {
                 BMC_LOG_ERROR << "hex ascii to char failed, cmd: " << cmd;
                 return "";
@@ -895,7 +895,7 @@ std::string CBMCRasSentry::BuildIPMICommand(uint16_t startIndex, std::string sev
     std::ostringstream cmdStream;
     cmdStream << IPMI_REQUEST_HEAD
             << " " << IPMI_REQUEST_KUNPENG_ID
-            << " " << IPMI_REQUEST_GET_CONCISE_EVENT 
+            << " " << IPMI_REQUEST_GET_CONCISE_EVENT
             << " " << ByteToHex(indexLow)
             << " " << ByteToHex(indexHigh)
             << " " << severity
@@ -937,7 +937,7 @@ ResponseHeader CBMCRasSentry::ParseResponseHeader(const std::vector<std::string>
     }
 
     if (hexBytes[0] != "db" || hexBytes[1] != "07" || hexBytes[2] != "00") {
-        BMC_LOG_ERROR << "Unexpected manufacturer ID: " 
+        BMC_LOG_ERROR << "Unexpected manufacturer ID: "
                      << hexBytes[0] << " " << hexBytes[1] << " " << hexBytes[2];
         return header;
     }
@@ -972,10 +972,10 @@ IPMIEvent CBMCRasSentry::ParseSingleEvent(const std::vector<std::string>& hexByt
     IPMIEvent event = {0, 0, 0, 0, 0, false};
     char* endPtr = nullptr;
 
-    for (int i = 0; i < 4; ++i) { 
+    for (int i = 0; i < 4; ++i) {
         unsigned long byte = std::strtoul(hexBytes[startPos + i].c_str(), &endPtr, 16);
         if (endPtr == hexBytes[startPos + i].c_str() || *endPtr != '\0' || byte > 0xff) {
-            BMC_LOG_ERROR << "Invalid alarm type byte at pos " << startPos + i 
+            BMC_LOG_ERROR << "Invalid alarm type byte at pos " << startPos + i
                          << ": " << hexBytes[startPos + i];
             return event;
         }
@@ -985,7 +985,7 @@ IPMIEvent CBMCRasSentry::ParseSingleEvent(const std::vector<std::string>& hexByt
     for (int i = 0; i < 4; ++i) {
         unsigned long byte = std::strtoul(hexBytes[startPos + 4 + i].c_str(), &endPtr, 16);
         if (endPtr == hexBytes[startPos + 4 + i].c_str() || *endPtr != '\0' || byte > 0xff) {
-            BMC_LOG_ERROR << "Invalid timestamp byte at pos " << startPos + 4 + i 
+            BMC_LOG_ERROR << "Invalid timestamp byte at pos " << startPos + 4 + i
                          << ": " << hexBytes[startPos + 4 + i];
             return event;
         }
@@ -1046,8 +1046,8 @@ void CBMCRasSentry::ReportAlarm(const IPMIEvent& event)
     std::string event_id = it->second;
 
     json_object* jObject = json_object_new_object();
-    std::string bmcId = uint32_to_hex_string(event.alarmTypeCode);
-    std::string time = unit32_to_local_time(event.timestamp);
+    std::string bmcId = Uint32ToHexString(event.alarmTypeCode);
+    std::string time = Unit32ToLocalTime(event.timestamp);
     json_object_object_add(jObject, JSON_KEY_ALARM_SOURCE.c_str(), json_object_new_string(BMC_TASK_NAME.c_str()));
     json_object_object_add(jObject, JSON_KEY_BMC_ID.c_str(), json_object_new_string(BMC_TASK_NAME.c_str()));
     json_object_object_add(jObject, JSON_KEY_ID.c_str(), json_object_new_string(event_id.c_str()));
@@ -1093,17 +1093,20 @@ void CBMCRasSentry::SetHardwareInfo(json_object* jObject, const std::string& eve
         return;
     } else if (eventType == "02") {
         json_object* raidInfo = json_object_new_object();
-        json_object_object_add(raidInfo, JSON_KEY_RAID_ID.c_str(), json_object_new_string(std::to_string(event.deviceId).c_str()));
+        json_object_object_add(raidInfo, JSON_KEY_RAID_ID.c_str(),
+                               json_object_new_string(std::to_string(event.deviceId).c_str()));
         json_object_object_add(jObject, JSON_KEY_RAID_INFO.c_str(), raidInfo);
         return;
     } else if (eventType == "03") {
         json_object* ramInfo = json_object_new_object();
-        json_object_object_add(ramInfo, JSON_KEY_RAM_ID.c_str(), json_object_new_string(std::to_string(event.deviceId).c_str()));
+        json_object_object_add(ramInfo, JSON_KEY_RAM_ID.c_str(),
+                               json_object_new_string(std::to_string(event.deviceId).c_str()));
         json_object_object_add(jObject, JSON_KEY_RAM_INFO.c_str(), ramInfo);
         return;
     } else if (eventType == "04") {
         json_object* cpuInfo = json_object_new_object();
-        json_object_object_add(cpuInfo, JSON_KEY_CPU_ID.c_str(), json_object_new_string(std::to_string(event.deviceId).c_str()));
+        json_object_object_add(cpuInfo, JSON_KEY_CPU_ID.c_str(),
+                               json_object_new_string(std::to_string(event.deviceId).c_str()));
         json_object_object_add(jObject, JSON_KEY_CPU_INFO.c_str(), cpuInfo);
         return;
     }
