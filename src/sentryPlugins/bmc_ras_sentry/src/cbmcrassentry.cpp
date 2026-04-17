@@ -9,6 +9,7 @@
 #include <string>
 #include <chrono>
 #include <cstdint>
+#include <climits>
 #include <sstream>
 #include <algorithm>
 #include <regex>
@@ -878,6 +879,11 @@ int CBMCRasSentry::QueryEvents()
         }
 
         ProcessEvents(hexBytes, header.eventCount);
+        if (header.eventCount > (UINT16_MAX - currentIndex)) {
+            BMC_LOG_ERROR << "Integer overflow rish in currentIndex update, break";
+            ret = BMCPLU_FAILED;
+            break;
+        }
         currentIndex += header.eventCount;
 
         if (currentIndex >= header.totalEvents) {
