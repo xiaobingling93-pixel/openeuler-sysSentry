@@ -133,7 +133,7 @@ def period_task_to_cleanup_connections():
         sleep(PERIOD_SCANN_TIME)
         # if conn thread stopped, cleanup thread should not cleanup anymore
         if conn_thread_should_stop.is_set():
-            continue
+            break
         cleanup_closed_connections(alarm_sock, alarm_epoll, fd_to_socket, fd_to_socket_lock)
 
 
