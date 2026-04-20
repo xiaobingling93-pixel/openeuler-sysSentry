@@ -193,7 +193,7 @@ class InspectTask:
             try:
                 subprocess.Popen(cmd_list, stdout=subprocess.PIPE, close_fds=True)
             except OSError:
-                logging.error("task %s stop Popen failed")
+                logging.error("task %s stop Popen failed", self.name)
             logging.debug("stop task %s", self.name)
             self.post()
 
