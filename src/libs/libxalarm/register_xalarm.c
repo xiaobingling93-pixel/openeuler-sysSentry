@@ -668,9 +668,58 @@ free_json:
     return ret;
 }
 
+
+static int send_event_message(int fd, struct alarm_subscription_info id_filter, const char *action)
+{
+    json_object *root = json_object_new_object();
+    json_object *ids_array = json_object_new_array();
+    int i;
+    const char *json_str;
+    int ret;
+
+    if (root == NULL || ids_array == NULL) {
+        if (root != NULL)
+            json_object_put(root);
+        fprintf(stderr, "%s: failed to create json object\n", __func__);
+        return -1;
+    }
+
+    json_object_object_add(root, "action", json_object_new_string(action));
+
+    for (i = 0; i < id_filter.len; i++) {
+        if (id_filter.id_list[i] == ALARM_REBOOT_EVENT ||
+                id_filter.id_list[i] == ALARM_OOM_EVENT ||
+                id_filter.id_list[i] == ALARM_PANIC_EVENT ||
+                id_filter.id_list[i] == ALARM_KERNEL_REBOOT_EVENT ||
+                id_filter.id_list[i] == ALARM_UBUS_MEM_EVENT) {
+            json_object_array_add(ids_array, json_object_new_int(id_filter.id_list[i]));
+        }
+    }
+    json_object_object_add(root, "event_ids", ids_array);
+
+    json_str = json_object_to_json_string(root);
+    ret = send(fd, json_str, strlen(json_str), 0);
+    if (ret < 0) {
+        fprintf(stderr, "%s: send %s msg of client fd %d failed\n", __func__, action, fd);
+        json_object_put(root);
+        return -1;
+    }
+
+    fprintf(stdout, "%s: send %s msg of client fd %d success\n", __func__, action, fd);
+    json_object_put(root);
+    return 0;
+}
+
+
+static int send_event_registration(int fd, struct alarm_subscription_info id_filter)
+{
+    return send_event_message(fd, id_filter, "register_events");
+}
+
+
 int xalarm_register_event(struct alarm_register **register_info, struct alarm_subscription_info id_filter)
 {
-    int i;
+    int i, ret;
     // check whether id_filter is valid
     if (register_info == NULL || !alarm_subscription_verify(id_filter)) {
         printf("%s: invalid params\n", __func__);
@@ -698,6 +747,15 @@ int xalarm_register_event(struct alarm_register **register_info, struct alarm_su
         return -ENOTCONN;
     }
 
+    // send event registration message to server
+    ret = send_event_registration((*register_info)->register_fd, id_filter);
+    if (ret < 0) {
+        fprintf(stderr, "%s: failed to send registration message\n", __func__);
+        close((*register_info)->register_fd);
+        free(*register_info);
+        *register_info = NULL;
+        return -ECOMM;
+    }
     return 0;
 }
 

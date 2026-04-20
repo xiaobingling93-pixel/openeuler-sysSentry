@@ -68,6 +68,7 @@ def release_pidfile():
 def signal_handler(signum, _f):
     """signal handler
     """
+    logging.error("xalarmd server exits due to an abnormal signal")
     if signum == signal.SIGTERM:
         release_pidfile()
         sys.exit(0)
@@ -105,7 +106,9 @@ def daemon_main():
     try:
         alarm_config = config_init()
         server_loop(alarm_config)
-    except socket.error:
+        logging.info("xalarmd server exits normally")
+    except socket.error as e:
+        logging.error("xalarmd server exits due to %s", str(e))
         release_pidfile()
 
 

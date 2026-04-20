@@ -20,12 +20,22 @@ import threading
 import errno
 from time import sleep
 
+from .xalarm_events import (
+    unregister_client_events,
+    register_client_events,
+    handle_client_event,
+    fd_to_events,
+    SENTRY_REPORTER_MODULE_EVENT_ID_LIST,
+    SENTRY_REMOTE_REPORTER_MODULE_EVENT_ID_LIST
+)
+
 MIN_ID_NUMBER = 1001
 MAX_ID_NUMBER = 1128
-MAX_CONNECTION_NUM = 100 
+MAX_CONNECTION_NUM = 100
 TEST_CONNECT_BUFFER_SIZE = 32
 MAX_RETRY_TIMES = 3
 SYSSENTRY_DOWN_ALARM_ID = 1128
+REG_MSG_BUFFER_SIZE = 1024
 
 
 def check_filter(alarm_info, alarm_filter):
@@ -63,8 +73,9 @@ def cleanup_closed_connections(server_sock, epoll, fd_to_socket, fd_to_socket_lo
                 pass
             except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
                 to_remove.append(fileno)
-        
+
         for fileno in to_remove:
+            unregister_client_events(fileno, list(fd_to_events.get(fileno, set())))
             fd_to_socket[fileno].close()
             del fd_to_socket[fileno]
             logging.info(f"cleaned up connection {fileno} for client lost connection.")
@@ -94,13 +105,31 @@ def wait_for_connection(server_sock, epoll, fd_to_socket, conn_thread_should_sto
                         logging.info(f"connection reach max num of {MAX_CONNECTION_NUM}, closed current connection!")
                         connection.close()
                         continue
+                    # receive event registration message
+                    try:
+                        connection.setblocking(True)
+                        connection.settimeout(0.5)
+                        reg_data = connection.recv(REG_MSG_BUFFER_SIZE)
+                        if reg_data:
+                            handle_client_event(connection.fileno(), reg_data)
+                        connection.setblocking(False)
+                    except socket.error as e:
+                        logging.warning(
+                                "Failed to receive registration from client: %d, reason is %s",
+                                connection.fileno(),
+                                str(e)
+                        )
+                        connection.close()
+                        continue
                     with fd_to_socket_lock:
                         fd_to_socket[connection.fileno()] = connection
                     logging.info("connection fd %d registered event.", connection.fileno())
-        except socket.error as e: 
-            logging.error(f"socket error, reason is {e}")
+        except socket.error as e:
+            logging.error("socket error, reason is %s", str(e))
         except (KeyError, OSError, ValueError) as e:
-            logging.error(f"wait for connection failed {e}")
+            logging.error("wait for connection failed %s", str(e))
+        except Exception as e:
+            logging.error("error occurred, reason is %s", str(e))
 
 
 def broadcast_sentry_down(server_socket, fd_to_socket, fd_to_socket_lock):
@@ -131,6 +160,7 @@ def broadcast_sentry_down(server_socket, fd_to_socket, fd_to_socket_lock):
                     fileno, str(e))
 
         for fileno in to_remove:
+            unregister_client_events(fileno, list(fd_to_events.get(fileno, set())))
             fd_to_socket[fileno].close()
             del fd_to_socket[fileno]
             logging.info(f"cleaned up connection {fileno} for client lost connection.")
@@ -165,7 +195,7 @@ def transmit_alarm(server_sock, epoll, fd_to_socket, bin_data, alarm_str, fd_to_
                 except Exception as e:
                     logging.info("Sending msg failed, fd is %d, alarm msg is %s, reason is: %s",
                             fileno, alarm_str, str(e))
-        
+
         for connection in to_retry:
             for i in range(MAX_RETRY_TIMES):
                 try:
@@ -177,6 +207,7 @@ def transmit_alarm(server_sock, epoll, fd_to_socket, bin_data, alarm_str, fd_to_
                         i, connection.fileno(), alarm_str, str(e))
 
         for fileno in to_remove:
+            unregister_client_events(fileno, list(fd_to_events.get(fileno, set())))
             fd_to_socket[fileno].close()
             del fd_to_socket[fileno]
             logging.info(f"cleaned up connection {fileno} for client lost connection.")
