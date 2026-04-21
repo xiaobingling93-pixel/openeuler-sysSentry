@@ -23,6 +23,7 @@ namespace BMCRasSentryPlu {
 const int RESP_HEADER_SIZE = 7;
 const int EVENT_SIZE = 15;
 const uint32_t BMC_BLOCK_IO_CODE = 0x02000039;
+const uint8_t MAX_REQ_INDEX = 100;
 const std::string BMC_TASK_NAME = "bmc_ras_sentry";
 const std::string GET_BMCIP_CMD = "ipmitool lan print";
 const std::string IPMI_KEY_IP_ADDR = "IP Address";
@@ -731,6 +732,52 @@ std::string CBMCRasSentry::BuilGetBMCBlockIoCommand(uint8_t blockType)
     return cmdStream.str();
 }
 
+/***** ipml protocol *****/
+/*
+查询请求 字节顺序 含义
+         1-3     厂商id 默认0xDB 0x07 0x00
+         4       子命令 默认0x3D
+         5       预留字段
+         6       新增操作类型 0x19-获取SSD慢盘检测相关属性
+         7       设置参数 0x00-获取NVME SSD慢盘检测参数
+                          0x01-获取SAS SSD慢盘检测参数
+         8       Block Selector 不涉及，默认0xFF
+         9       Extern Selector 不涉及，默认0xFF
+         10-11   读取数据偏移，从0开始
+         12      本次读取长度
+查询响应 字节顺序 含义
+         1       completion code 调用成功时该字节不会显示在终端上
+         2-4     厂商ID,对应请求中内容
+         5       Frame type 不涉及，默认返回00
+         6-N     data1: 慢盘检查使能开关，0x00-不使能，0x01-使能
+                 data2-3: 平均响应时延阈值，单位为ms，小端字节序
+                 data4: 平均时延超过门限的次数
+                 data5: 准慢盘的平均响应时延硬盘域内的倍数
+                 data6-7: 准慢盘的标准平均响应时延，单位ms，小端字节序
+eg:
+ipmitool raw 0x30 0x93 0xDB 0x07 0x00 0x3D 0x00 0x19 0x00 0xFF 0xFF 0x00 0x00 0xFF
+db 07 00 00 01 14 00 05 05 ff ff
+设置请求 字节顺序 含义
+         1-3     厂商id 默认0xDB 0x07 0x00
+         4       子命令 默认0x3E
+         5       预留字段
+         6       新增操作类型 0x19-获取SSD慢盘检测相关属性
+         7       设置参数 0x00-获取NVME SSD慢盘检测参数
+                          0x01-获取SAS SSD慢盘检测参数
+         8       Block Selector 不涉及，默认0xFF
+         9       Extern Selector 不涉及，默认0xFF
+         10      Frame type 不涉及，默认0x00
+         11-12   Writing Offset 不涉及，默认0x00
+         13      写入长度 写入参数的长度，默认0x01
+         14      写入参数 0x00-不使能，0x01-使能
+设置响应 字节顺序 含义
+         1       completion code 调用成功时该字节不会显示在终端上
+         2-4     厂商ID,对应请求中内容
+         5-8     返回值 默认返回0
+eg:
+ipmitool raw 0x30 0x93 0xDB 0x07 0x00 0x3E 0x00 0x19 0x00 0xFF 0xFF 0x00 0x00 0x00 0x01 0x01
+dp 07 00 00 00 00 00
+    */
 void CBMCRasSentry::OpenBMCBlockIo(uint8_t blockType)
 {
     auto getCmd = BuilGetBMCBlockIoCommand(blockType);
@@ -784,12 +831,32 @@ std::string CBMCRasSentry::BuildDiskSNIPMICommand(const IPMIEvent& event, uint8_
     return cmdStream.str();
 }
 
+/***** ipml protocol *****/
+/*
+请求 字节顺序 含义
+     1-3     厂商id 默认0xDB 0x07 0x00
+     4       子命令 默认0x90
+     5-8     设备类型 硬盘类型为0x02 0x00 0x00 0x80
+     9       组编号 默认0xFF
+     10-11   设备编号 由告警查询返回
+     12-13   查询类型 部件SN为0x00 0x00
+     14-15   读取数据偏移，从0开始
+     16      本次读取长度
+响应 字节顺序 含义
+     1       completion code 调用成功时该字节不会显示在终端上
+     2-4     厂商ID,对应请求中内容
+     5       表示当前数据是否结束，0x00表示读完，0x01表示没有
+     6-N     返回数据，长度为请求字段长度，每一位为ascii编码16位数值
+厂商ID固定,其他所有多字节对象均为小端序, eg:
+ipmtool raw 0x30 0x93 0xDB 0x07 0x00 0x90 0x02 0x00 0x00 0x80 0xFF 0x01 0x00 0x00 0x00 0x00 0x80
+db 07 00 00 30 33 34 51 56 56 31 30 50 38 31 30 30 34 39 31
+    */
 std::string CBMCRasSentry::GetDiskSNByIPMI(const IPMIEvent& event)
 {
     uint8_t startIndex = 0;
     std::string diskSN;
     
-    while (true) {
+    while (startIndex < MAX_REQ_INDEX) {
         std::string cmd = BuildDiskSNIPMICommand(event, startIndex);
         auto hexBytes = ExecuteIPMICommand(cmd);
         if (hexBytes.empty() || hexBytes.size() < 4) {
@@ -812,6 +879,12 @@ std::string CBMCRasSentry::GetDiskSNByIPMI(const IPMIEvent& event)
         }
         startIndex++;
     }
+
+    if (startIndex >= MAX_REQ_INDEX) {
+        BMC_LOG_ERROR << "req index exceeded, max index: " << MAX_REQ_INDEX;
+        return "";
+    }
+
     return diskSN;
 }
 
@@ -831,7 +904,7 @@ std::string CBMCRasSentry::GetDiskSNByIPMI(const IPMIEvent& event)
      5-6     事件总数量
      7       本次返回中包含的事件数量
      8       占位字节,默认0
-     9-12    告警类型码,0x0200039为告警产生,0x0200003A为告警消除
+     9-12    告警类型码
      13-16   事件发生的linux时间戳
      17      事件严重级别,0-normal,1-minor,2-major,3-critical
      18      主体类型,对应请求中内容
