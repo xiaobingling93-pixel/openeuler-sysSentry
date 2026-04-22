@@ -38,7 +38,7 @@ from .xalarm_transfer import (
 ALARM_REPORT_LEN = 8216
 PERIOD_CHECK_TIME = 3
 ALARM_LISTEN_QUEUE_LEN = 5
-PERIOD_SCANN_TIME = 60
+PERIOD_SCANN_TIME = 1
 fd_to_socket_lock = threading.Lock()
 
 
