@@ -22,11 +22,8 @@ from time import sleep
 
 from .xalarm_events import (
     unregister_client_events,
-    register_client_events,
     handle_client_event,
-    fd_to_events,
-    SENTRY_REPORTER_MODULE_EVENT_ID_LIST,
-    SENTRY_REMOTE_REPORTER_MODULE_EVENT_ID_LIST
+    fd_to_events
 )
 
 MIN_ID_NUMBER = 1001
